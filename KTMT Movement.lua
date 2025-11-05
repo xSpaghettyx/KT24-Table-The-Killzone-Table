@@ -251,16 +251,13 @@ function onNumberTyped( pc, n )
 	end
 end
 
-function onLoad()
-    self.setName(
-        "Press 1-6 to change the distance\n" ..
-        "8 to cancel last step\n" ..
-        "9 to confirm step\n" ..
-        "0 to finish and move the model"
-    )
-end
-
 function onLoad(ls)
+self.setName(
+"Press 1-6 to change the distance\n" ..
+"8 to cancel last step\n" ..
+"9 to confirm step\n" ..
+"0 to finish and move the model"
+)
 self.max_typed_number=9
 rngMov=1
 txtMax = "\n(max 1'')"
@@ -296,7 +293,7 @@ DataObjeto =
 DataModel =
 {
     mesh = "https://raw.githubusercontent.com/Ixidior/KTMT/main/"..baseModel.."MM.obj",
-    diffuse = "https://i.imgur.com/K1RvGML.jpg",
+    diffuse = "https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/KTMT%20Diffuse.png",
     collider = "https://raw.githubusercontent.com/Ixidior/KTMT/main/collider4.obj",
     type = 0,
     material = 0,
@@ -318,7 +315,7 @@ if CUBO == nill then
 	CUBO.static_friction = 1
 
 end
- WebRequest.get("https://raw.githubusercontent.com/Ixidior/KTMT/main/Node", function(req)
+ WebRequest.get("https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/KTMT%20Movement.lua", function(req)
 local script = req.text
 CUBO.setLuaScript(script)
 CUBO.setVar("GUIDModel",GUIDModel)
