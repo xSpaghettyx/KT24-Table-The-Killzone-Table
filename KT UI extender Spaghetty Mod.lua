@@ -88,7 +88,7 @@ if CONO == nill then
 	CONO.use_gravity = false
 
 end
- WebRequest.get("https://raw.githubusercontent.com/Ixidior/KTMT/refs/heads/main/ScriptCono", function(req)
+ WebRequest.get("https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/KTMT%20Target%20Cone.lua", function(req)
 local script = req.text
 CONO.setLuaScript(script)
 --CONO.setColorTint(Color.fromString(pc))
