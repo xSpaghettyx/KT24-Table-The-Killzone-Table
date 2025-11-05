@@ -303,10 +303,9 @@ end
 
 function onLoad(ls)
 self.setName(
-"Press 1-6 to change the distance\n" ..
-"8 to cancel last step\n" ..
-"9 to confirm step\n" ..
-"0 to finish and move the model"
+"Hover over the cone and press R to select the target\n" ..
+"Press 1-4 to change the line color\n" ..
+"0 to finish\n" ..
 )
 self.max_typed_number=9
 rngMov=3
