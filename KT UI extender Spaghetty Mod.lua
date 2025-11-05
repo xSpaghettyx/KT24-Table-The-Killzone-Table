@@ -1,6 +1,6 @@
 
   self.addContextMenuItem("Save place", function(pc) savePosition() end)
-  self.addContextMenuItem("Load place", function(pc) loadPosition(pc) end)
+  self.addContextMenuItem("Load place", function(pc) loadPosition() end)
 
 self.addContextMenuItem("Movement", function(pc)  agregaRuta() end)
 self.addContextMenuItem("Targeting lines", function(pc)  agregaCono() end)
@@ -294,14 +294,13 @@ function savePosition(p, r)
   self.highlightOn(Color(0.19, 0.63, 0.87), 0.5)
 end
 
-function loadPosition(pc)
+function loadPosition()
   local sp = state.savePos
   local event = {
     id = self.getGUID(),
     operative = self.getName(),
     coords= sp.position,
-    old_coords = self.getPosition(),
-    player = Player[pc].steam_name
+    old_coords = self.getPosition()
   }
   if sp then
     self.setPositionSmooth(sp.position, false, true)
