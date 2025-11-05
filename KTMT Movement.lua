@@ -253,10 +253,11 @@ end
 
 function onLoad(ls)
 self.setName(
-"Press 1-6 to change the distance\n" ..
-"8 to cancel last step\n" ..
-"9 to confirm step\n" ..
-"0 to finish and move the model"
+"Hover over and press these buttons:\n" ..
+"- 1-6 to change the distance\n" ..
+"- 8 to cancel last step\n" ..
+"- 9 to confirm step\n" ..
+"- 0 to finish and move the model"
 )
 self.max_typed_number=9
 rngMov=1
