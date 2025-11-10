@@ -1,3 +1,5 @@
+-- KTUI EXTANDER + KTMT Spaghetty mod--
+-- Original mods by Nyirsh, Feuerfritas, Ixidior and Mal20k--
 
   self.addContextMenuItem("Save place", function(pc) savePosition() end)
   self.addContextMenuItem("Load place", function(pc) loadPosition() end)
@@ -49,8 +51,6 @@ CUBO.setVar("GUIDNodPrev",self.getGUID())
 end
 
 )
-self.setLock(true)
-self.interactable = false 
 end
 
 function agregaCono()
