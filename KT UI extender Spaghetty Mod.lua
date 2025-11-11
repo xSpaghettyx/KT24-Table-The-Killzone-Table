@@ -537,10 +537,10 @@ end
 
 function createUI()
   local baseBundle = {
-    {name="Engage_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Engage%20Ready.png]=]},
-    {name="Engage_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Engage%20Expended.png]=]},
-    {name="Conceal_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Ready.png]=]},
-    {name="Conceal_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Expended.png]=]},
+    {name="Engage_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Engage%20Ready.png?v=2]=]},
+    {name="Engage_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Engage%20Expended.png?v=2]=]},
+    {name="Conceal_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Ready.png?v=2]=]},
+    {name="Conceal_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Expended.png?v=2]=]},
     {name="Wound_blue",   url=[=[http://cloud-3.steamusercontent.com/ugc/1857171492582455772/CFB7B4D001501AC54B4D0CC7FEE35AF679B73D34/]=]},
 	  {name="Wound_red",   url=[=[http://cloud-3.steamusercontent.com/ugc/1857171826950614938/C515FF37C3D1D269533C1B5FDA675895F792BC15/]=]},
   }
