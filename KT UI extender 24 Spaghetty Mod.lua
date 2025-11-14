@@ -786,7 +786,7 @@ function refreshVectors(norotate)
     {
       points = getCircleVectorPoints(0 - baseLineRadius, baseLineHeight),
       color = op and Color.fromString(op.color) or {0.5, 0.5, 0.5},
-      thickness = baseLineRadius*2*scaleFactor
+      thickness = baseLineRadius*1*scaleFactor
     }
   }
 
@@ -795,7 +795,7 @@ function refreshVectors(norotate)
       table.insert(newLines,{
         points=getCircleVectorPoints(measureRange - modelMeasureLineRadius + 0.05, 0.125),
         color = measureColor,
-        thickness = modelMeasureLineRadius*2*scaleFactor,
+        thickness = modelMeasureLineRadius*1*scaleFactor,
         rotation = (norotate and {0, 0, 0} or {-rotation.x, 0, -rotation.z})
       })
       end
@@ -1053,4 +1053,5 @@ end
 string.endswith = function(self, str)
     return self:find(str .. "$") ~= nil
 end
+
 
