@@ -1,4 +1,4 @@
--- KTUI EXTANDER + KTMT Spaghetty mod--
+-- KTUI EXTENDER + KTMT Spaghetty mod--
 -- Original mods by Nyirsh, Feuerfritas, Ixidior and Mal20k--
 
   self.addContextMenuItem("Save place", function(pc) savePosition() end)
@@ -443,11 +443,8 @@ function refreshUI()
     end
   end
 
-  local position = "0 0 -"..tostring(state.uiHeight*100*scaleFactorZ)
+local position = getUIPosition()
 
-  if state.isHorizontal == true then
-    position = "0 -"..tostring(60*scaleFactorY).." -"..tostring(20*scaleFactorZ)
-  end
   local xmlTable = [[<Defaults>
   <Image class="statusDisplay" hideAnimation="Shrink" showAnimation="Grow" preserveAspect="true" />
 </Defaults>
@@ -656,8 +653,17 @@ function onLoad(ls)
   local operative = self
   self.addContextMenuItem("Update stats", updateStats)
 
-  self.addContextMenuItem("Change UI position", function(pc) if state.isHorizontal ~= true then state.isHorizontal = true else state.isHorizontal = false end refreshUI() end)
+if state.uiPositionIndex == nil then
+        state.uiPositionIndex = 1
+    end
 
+    self.addContextMenuItem("Change UI position", function(pc)
+        state.uiPositionIndex = state.uiPositionIndex + 1
+        if state.uiPositionIndex > 5 then
+            state.uiPositionIndex = 1
+        end
+        refreshUI()
+    end, true)
 
   local taglist = {state.modelid, "Operative"}
   for _,category in pairs(state.info.categories) do
@@ -1038,6 +1044,24 @@ string.startswith = function(self, str)
 end
 string.endswith = function(self, str)
     return self:find(str .. "$") ~= nil
+end
+
+function getUIPosition()
+    local uiHeight = state.uiHeight or 1
+    local zScale = scaleFactorZ or 1
+
+    if state.uiPositionIndex == 1 then
+        return "0 30 -" .. tostring(uiHeight * 100 * zScale)
+    elseif state.uiPositionIndex == 2 then
+        return "0 30 -" .. tostring(uiHeight * 120 * zScale)
+    elseif state.uiPositionIndex == 3 then
+        return "0 30 -" .. tostring(uiHeight * 140 * zScale)
+    elseif state.uiPositionIndex == 4 then
+        local yScale = scaleFactorY or 1
+        return "0 -" .. tostring(60 * yScale) .. " -" .. tostring(20 * zScale)
+    elseif state.uiPositionIndex == 5 then
+        return "0 30 -" .. tostring(uiHeight * 80 * zScale)
+    end
 end
 
 
