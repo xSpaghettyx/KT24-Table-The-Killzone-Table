@@ -402,6 +402,14 @@ function callback_orders(player, value, id)
     else
       state.ready = true
     end
+    if state.order == "Guard" or state.order == "GuardConceal" then
+      state.order = "Engage"
+      state.ready = false
+    end
+  elseif
+    state.order == "Guard" or state.order == "GuardConceal" then
+      state.order = "Engage"
+      state.ready = false
   else
     if state.order == "Engage" then
       state.order = "Conceal"
@@ -538,6 +546,10 @@ function createUI()
     {name="Engage_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Engage%20Expended.png?v=2]=]},
     {name="Conceal_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Ready.png?v=2]=]},
     {name="Conceal_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Conceal%20Expended.png?v=3]=]},
+    {name="Guard_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Guard.png]=]},
+    {name="Guard_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Guard.png]=]},
+    {name="GuardConceal_ready", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Guard%20Conceal.png]=]},
+    {name="GuardConceal_activated", url=[=[https://raw.githubusercontent.com/xSpaghettyx/KT24-Table-The-Killzone-Mod/refs/heads/main/Guard%20Conceal.png]=]},
     {name="Wound_blue",   url=[=[http://cloud-3.steamusercontent.com/ugc/1857171492582455772/CFB7B4D001501AC54B4D0CC7FEE35AF679B73D34/]=]},
 	  {name="Wound_red",   url=[=[http://cloud-3.steamusercontent.com/ugc/1857171826950614938/C515FF37C3D1D269533C1B5FDA675895F792BC15/]=]},
   }
@@ -708,6 +720,17 @@ function callback_Attack(i)
     end, 5)
 end
 
+function setGuard()
+  state.order = "Guard"
+  state.ready = true
+  refreshUI()
+end
+
+function setGuardConceal()
+  state.order = "GuardConceal"
+  state.ready = true
+  refreshUI()
+end
 
 function setEngage()
   state.order = "Engage"
@@ -898,6 +921,16 @@ function onCollisionEnter(a)
     if newState:startswith("Engage") then state.order = "Engage" else state.order = "Conceal" end
     if newState:endswith("ready") then state.ready = true else state.ready = false end
     mustRefresh = true
+  elseif a.collision_object.hasTag("KTUITokenGuard") then
+    a.collision_object.destruct()
+    state.ready = true
+    state.order = "Guard"
+    mustRefresh = true
+  elseif a.collision_object.hasTag("KTUITokenGuardConceal") then
+    a.collision_object.destruct()
+    state.ready = true
+    state.order = "GuardConceal"
+    mustRefresh = true
   elseif a.collision_object.hasTag("KTUITokenSimple") or a.collision_object.hasTag("KTUITokenEquipment") or a.collision_object.hasTag("KTUIStackable") then
     local newState = a.collision_object.getDescription()
     local imageUrl = a.collision_object.getCustomObject().image
@@ -986,9 +1019,16 @@ end
 
 
 function KTUI_ReadyOperative()
-  state.ready = true
-  refreshUI()
+  if state.order == "Guard" or state.order == "GuardConceal" then
+      state.order = "Engage"
+      state.ready = true
+      refreshUI()
+  else 
+      state.ready = true
+      refreshUI()
+  end
 end
+
 
 function KTUI_CleanOperative()
   state.attachments = {}
