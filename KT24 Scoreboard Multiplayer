@@ -1,6 +1,4 @@
--- KT24 Base Table Scoreboard Spaghetty Mod --
--- Slim version: removed overwatch, superdeck, factions, streamer UI and pregame checklist functionality
-
+-- KT24 Base Table Scoreboard for Multiplayer Gamemode Spaghetty Mod --
 
 function getCurrentAssets()
   local status, current = pcall(UI.getCustomAssets)
@@ -88,12 +86,13 @@ opMap = {
   ["Kill Op"]="killop",
 }
 
+-- Changed default players to Yellow and Teal
 defaultSettings = [[{
   "packet":{
     "name":"KT24",
     "players":[
-      "Red",
-      "Blue"
+      "Yellow",
+      "Teal"
     ],
     "autoPromote":true
   },
@@ -224,43 +223,46 @@ end
 -- require("base-board/legacy-mission-data")
 -- require("base-board/panel-buttons")
 
+-- IMPORTANT: this duplicated object must not touch the original/global HUD values directly.
+-- We build a HUD panel with GUID-prefixed IDs and publish that panel to Global.UI so it appears
+-- alongside the preloaded/global HUD. The IDs are unique (prefixed by this object's GUID)
+-- so no collision or value-sharing occurs.
+
 function getUIAttribute(id, attr)
-  if UI.getAttribute(id, attr) ~= nil then
-    return UI.getAttribute(id, attr)
-  end
   if self.UI.getAttribute(id, attr) ~= nil then
     return self.UI.getAttribute(id, attr)
   end
+  return nil
 end
 
 function showUI(id)
-  UI.show(id)
-  self.UI.show(id)
+  pcall(function() self.UI.show(id) end)
 end
 
 function hideUI(id)
-  UI.hide(id)
-  self.UI.hide(id)
+  pcall(function() self.UI.hide(id) end)
 end
 
 function setUIValue(id, value)
-  UI.setValue(id, value)
-  self.UI.setValue(id, value)
+  pcall(function() self.UI.setValue(id, value) end)
 end
 
 function setUIAttribute(id, attr, value)
-  UI.setAttribute(id, attr, value)
-  self.UI.setAttribute(id, attr, value)
+  pcall(function() self.UI.setAttribute(id, attr, value) end)
 end
 
 function setUIAttributes(id, data)
-  UI.setAttributes(id, data)
+  pcall(function() self.UI.setAttributes(id, data) end)
 end
 
+-- refresh: also update the published Global HUD (GUID-prefixed) for steam names + color panels
 function refresh()
+  local guid = self.getGUID()
+  local pref = guid .. "_"
+
   for p, uiid in pairs(players) do
     local player = Player[p]
-    if player.seated then
+    if player and player.seated then
       playerNames[p] = player.steam_name
       if rules.packet.autoPromote and not (player.host or player.promoted) then
         player.promote()
@@ -268,14 +270,28 @@ function refresh()
     else
       playerNames[p] = p
     end
+
+    -- object-local scoreboard name (unchanged)
     setUIValue(uiid, playerNames[p])
-    -- previously set streamer UI; removed
+
+    -- mirrored to published Global HUD name field (GUID-prefixed)
+    pcall(function()
+      Global.UI.setValue(pref .. uiid, playerNames[p])
+    end)
+
+    -- update panel colors for both object-local and global HUD (GUID-prefixed)
     local color = Color.fromString(p)
     local color1 = color:lerp(Color(1, 1, 1), 0.25)
     local color2 = color:lerp(Color(1, 1, 1), 0.6)
     setUIAttribute(uiid.."_panel", "color", "#"..color1:toHex())
     setUIAttribute(uiid.."_panel2", "color", "#"..color2:toHex())
+
+    pcall(function()
+      Global.UI.setAttribute(pref .. uiid.."_panel", "color", "#"..color1:toHex())
+      Global.UI.setAttribute(pref .. uiid.."_panel2", "color", "#"..color2:toHex())
+    end)
   end
+
   refreshAll()
   updateInitiativeUI()
 end
@@ -287,15 +303,20 @@ function refreshAll()
   end
 end
 
+-- Changed to react to Yellow/Teal instead of Red/Blue
 function onPlayerChangeColor(pc)
-  if pc == "Red" or pc == "Blue" then
+  -- When a player changes color, Player[pc] will reflect the occupant (or nil). Refresh will update names accordingly.
+  if pc == "Yellow" or pc == "Teal" then
     if result == nil then result = {} end
-    if result[Player[pc].steam_name] == nil then
+    if Player[pc] and result[Player[pc].steam_name] == nil then
       result[Player[pc].steam_name] = {}
     end
-    result[Player[pc].steam_name].color = pc
-    refresh()
+    if Player[pc] then
+      result[Player[pc].steam_name].color = pc
+    end
   end
+  -- Always refresh on color change to update names and visibility
+  refresh()
 end
 
 function onPlayerDisconnect(pc)
@@ -1444,7 +1465,8 @@ function buildGrandTotalRow(ch, uy, x, y, w)
   return uy-y+h
 end
 
-function buildScoreboard(def)
+-- Build scoreboard panel (returns panel node instead of setting UI directly)
+function buildScoreboardPanel(def)
   local ch = {}
   local uiHeight = 0
   local uiPanelWidth = rules.art.gui.scoreboard.width
@@ -1490,24 +1512,24 @@ function buildScoreboard(def)
     rotation="45 0 180"
     position="0 0 -"..(math.sqrt((uiHalf*uiHalf)/2) + 150)
   end
-  local xmt = {
-    def,
-    {
-      tag="Panel",
-      attributes={
-        class="mainPanel",
-        active=true,
-        width=uiPanelWidth,
-        height=uiHeight,
-        rotation=rotation,
-        position=position
-      },
-      children=ch
-    }
+
+  local panel = {
+    tag="Panel",
+    attributes={
+      class="mainPanel",
+      active=true,
+      width=uiPanelWidth,
+      height=uiHeight,
+      rotation=rotation,
+      position=position
+    },
+    children=ch
   }
-  self.UI.setXmlTable(xmt)
+
+  return panel
 end
 
+-- makeDefaults unchanged (returns Defaults)
 function makeDefaults(settings)
   local colors = settings.art.colors
 
@@ -1623,7 +1645,17 @@ function loadAssets(graphics)
   safeSetCustomAssets(assets)
 end
 
-function hudScoreElement(ch, x, y, s, layout, pl)
+-- Independent HUD builders that generate GUID-prefixed IDs and return a single panel (not touching Global.UI yet)
+local function getHudVisibilities_local()
+  local pvis = {}
+  for _,color in ipairs(rules.packet.players or {}) do
+    table.insert(pvis, color)
+  end
+  return table.concat(pvis, "|"), ""
+end
+
+local function hudScoreElement_local(ch, guidPrefix, x, y, s, layout, pl)
+  local idPref = guidPrefix .. "_"
   local grandH = math.floor(s*0.75)
   local subH = s - grandH
   table.insert(ch, {
@@ -1641,7 +1673,7 @@ function hudScoreElement(ch, x, y, s, layout, pl)
       {
         tag="Text",
         attributes={
-          id="kts__grandtotal_player"..pl,
+          id=idPref .. "kts__grandtotal_player"..pl,
           class="finalScore",
           rectAlignment="UpperCenter",
           height=grandH,
@@ -1657,7 +1689,7 @@ function hudScoreElement(ch, x, y, s, layout, pl)
           width=s/3,
           fontSize=subH-8,
           rectAlignment="LowerLeft",
-          id="kts__critoptotal_player"..pl
+          id=idPref .. "kts__critoptotal_player"..pl
         },
         value=string.format("0/%d", rules.scoring.critop.max)
       },
@@ -1669,7 +1701,7 @@ function hudScoreElement(ch, x, y, s, layout, pl)
           width=s/3,
           fontSize=subH-8,
           rectAlignment="LowerCenter",
-          id="kts__tacoptotal_player"..pl
+          id=idPref .. "kts__tacoptotal_player"..pl
         },
         value=string.format("0/%d", rules.scoring.tacop.max)
       },
@@ -1681,7 +1713,7 @@ function hudScoreElement(ch, x, y, s, layout, pl)
           width=s/3,
           fontSize=subH-8,
           rectAlignment="LowerRight",
-          id="kts__killoptotal_player"..pl
+          id=idPref .. "kts__killoptotal_player"..pl
         },
         value=string.format("0/%d", rules.scoring.killop.max)
       }
@@ -1689,12 +1721,12 @@ function hudScoreElement(ch, x, y, s, layout, pl)
   })
 end
 
-function hudInitiativeElement(ch, x, y, s, layout, pl)
+local function hudInitiativeElement_local(ch, guidPrefix, x, y, s, layout, pl)
   table.insert(ch,{
     tag="Image",
     attributes={
       class="initiativeDisplay",
-      id="kts__initiative_display_player"..pl,
+      id=guidPrefix .. "_kts__initiative_display_player"..pl,
       width=s, height=s,
       rectAlignment=layout,
       offsetXY = string.format("%f %f", x, y)
@@ -1702,7 +1734,7 @@ function hudInitiativeElement(ch, x, y, s, layout, pl)
   })
 end
 
-function hudNameElement(ch, x, y, w, h, layout, pl, suffix)
+local function hudNameElement_local(ch, guidPrefix, x, y, w, h, layout, pl, suffix)
   local playerc = rules.packet.players[pl]
   local suffix = suffix or ""
   table.insert(ch,{
@@ -1719,7 +1751,7 @@ function hudNameElement(ch, x, y, w, h, layout, pl, suffix)
         tag="Text",
         attributes={
           class="steamName",
-          id=paramPlayer[pl]..suffix,
+          id=guidPrefix .. "_" .. paramPlayer[pl] .. suffix,
           color= string.format("#%s", Color.fromString(playerc):toHex())
         },
         value=playerc
@@ -1728,8 +1760,8 @@ function hudNameElement(ch, x, y, w, h, layout, pl, suffix)
   })
 end
 
-function hudCommandElement(ch, x, y, w, h, layout, pl, suffix)
-  local guid = self.getGUID()
+local function hudCommandElement_local(ch, guidPrefix, x, y, w, h, layout, pl, suffix)
+  local guid = guidPrefix
   local vp = rules.packet.players[pl]
   local suffix = suffix or ""
   table.insert(ch,{
@@ -1746,51 +1778,43 @@ function hudCommandElement(ch, x, y, w, h, layout, pl, suffix)
         tag="Text",
         attributes={
           class="title2",
-          id="kts__command_player"..pl..suffix
+          id=guid .. "_kts__command_player"..pl..suffix
         },
         value="3 CP"
       },
       {
         tag="Button",
         attributes={
-          onClick=guid.."/onCommandPointUpPressed",
+          onClick="onCommandPointUpPressed",
           width=h-8, height=h-8,
           text="+", fontSize=h-8,
           rectAlignment="MiddleRight",
           visibility=vp,
-          id="kts__command_increase_player"..pl
+          id=guid .. "_kts__command_increase_player"..pl
         }
       },
       {
         tag="Button",
         attributes={
-          onClick=guid.."/onCommandPointDownPressed",
+          onClick="onCommandPointDownPressed",
           width=h-8, height=h-8,
           text="-", fontSize=h-8,
           rectAlignment="MiddleLeft",
           visibility=vp,
-          id="kts__command_increase_player"..pl
+          id=guid .. "_kts__command_decrease_player"..pl
         }
       }
     }
   })
 end
 
-function getHudVisibilities()
-  -- Streamer functionality removed; return visibility of player colors only
-  local players = Player.getColors()
-  local pvis = {}
-  for _,col in pairs(players) do
-    table.insert(pvis, col)
-  end
-  return table.concat(pvis, "|"), ""
-end
-
-function buildHUD(def)
+-- Build HUD panel (returns basePanel). IDs inside are GUID-prefixed to avoid collisions.
+function buildHUDPanel(def)
   local guid = self.getGUID()
+  local guidPrefix = guid
   local uiWidth = 650
   local uiHeight = 90
-  local panelID = "kts__hud_panel"
+  local panelID = guidPrefix .. "_kts__hud_panel"
   local chl = {}
   local chr = {}
   local logoVisible = rules.art.graphics.eventLogo ~= nil
@@ -1800,28 +1824,29 @@ function buildHUD(def)
   local uiMiddleZone = 150
   local nameplateWidth = math.floor(uiSubWidth*0.5 + 32)
 
-  local hudVisibility, streamVisibility = getHudVisibilities()
+  local hudVisibility, _ = getHudVisibilities_local()
 
+  -- Make HUD visible to all players when published (we will override visibility when pushing to Global.UI)
   if logoVisible then
     uiMiddleZone = math.max(uiMiddleZone, logoWidth+4)
   end
   uiWidth = uiWidth + uiMiddleZone
 
-  hudScoreElement(chl, 0, 5, uiHeight, "LowerRight", 1)
-  hudInitiativeElement(chl, -(uiHeight + 4), -4, 32, "UpperRight", 1)
-  hudNameElement(chl, 2, -2, nameplateWidth, uiHeight*0.33, "UpperLeft", 1)
-  hudCommandElement(chl, 2, 2, nameplateWidth, uiHeight*0.66-6, "LowerLeft", 1)
+  hudScoreElement_local(chl, guidPrefix, 0, 5, uiHeight, "LowerRight", 1)
+  hudInitiativeElement_local(chl, guidPrefix, -(uiHeight + 4), -4, 32, "UpperRight", 1)
+  hudNameElement_local(chl, guidPrefix, 2, -2, nameplateWidth, uiHeight*0.33, "UpperLeft", 1)
+  hudCommandElement_local(chl, guidPrefix, 2, 2, nameplateWidth, uiHeight*0.66-6, "LowerLeft", 1)
 
-  hudScoreElement(chr, 0, 5, uiHeight, "LowerLeft", 2)
-  hudInitiativeElement(chr, (uiHeight + 4), -4, 32, "UpperLeft", 2)
-  hudNameElement(chr, -2, -2, nameplateWidth, uiHeight*0.33, "UpperRight", 2)
-  hudCommandElement(chr, -2, 2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 2)
+  hudScoreElement_local(chr, guidPrefix, 0, 5, uiHeight, "LowerLeft", 2)
+  hudInitiativeElement_local(chr, guidPrefix, (uiHeight + 4), -4, 32, "UpperLeft", 2)
+  hudNameElement_local(chr, guidPrefix, -2, -2, nameplateWidth, uiHeight*0.33, "UpperRight", 2)
+  hudCommandElement_local(chr, guidPrefix, -2, 2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 2)
 
   local ch = {
     {
       tag="Panel",
       attributes={
-        id="scoreBoardGUI",
+        id=guidPrefix .. "_scoreBoardGUI",
         class="mainPanel",
         width=uiMiddleZone,
         height=uiHeight/2,
@@ -1833,7 +1858,7 @@ function buildHUD(def)
           attributes={
             class="title2",
             fontSize=uiHeight*0.3,
-            id="kts__round_current"
+            id=guidPrefix .. "_kts__round_current"
           },
           value="KT 24"
         },
@@ -1841,7 +1866,7 @@ function buildHUD(def)
       }
     },
 
-        {
+    {
       tag="Panel",
       attributes={
         class="mainPanel",
@@ -1882,33 +1907,75 @@ function buildHUD(def)
       height=uiHeight+30,
       allowDragging=true,
       returnToOriginalPositionWhenReleased=false,
-      visibility=hudVisibility,
-      rectAlignment="LowerCenter"
+      visibility="", -- default to visible to all; we'll ensure this when pushing to Global.UI
+      rectAlignment="LowerCenter",
+      offsetXY = "0 " .. tostring(uiHeight + 30) -- offset upward by its own height (including small margin)
     },
     children = ch
   }
 
-  if Global.UI.getAttribute("scoreBoardGUI", "id") == nil then
-    local oldUI = Global.UI.getXmlTable()
+  return basePanel
+end
 
-    if oldUI == nil then
-			oldUI = {}
-		end
-    table.insert(oldUI, def)
-    table.insert(oldUI, basePanel)
-
-    Wait.frames(function() Global.UI.setXmlTable(oldUI) end, 1)
+-- Publish the built HUD to Global.UI so it appears alongside the preloaded/global HUD.
+function pushHudToGlobal()
+  if not buildHUDPanel then
+    print("pushHudToGlobal: buildHUDPanel not found")
+    return
   end
+
+  local defaults = makeDefaults and makeDefaults(rules) or nil
+  local hudPanel = buildHUDPanel(defaults)
+  if not hudPanel then
+    print("pushHudToGlobal: buildHUDPanel returned nil")
+    return
+  end
+
+  -- Ensure visibility is public
+  if not hudPanel.attributes then hudPanel.attributes = {} end
+  hudPanel.attributes.visibility = ""
+
+  -- Append into existing Global.UI
+  local ok, globalXml = pcall(function() return Global.UI.getXmlTable() end)
+  if not ok or type(globalXml) ~= "table" then
+    globalXml = {}
+  end
+
+  -- Remove any previous panel with same id to avoid duplicates on reload
+  for i = #globalXml, 1, -1 do
+    local node = globalXml[i]
+    if node and node.attributes and node.attributes.id == hudPanel.attributes.id then
+      table.remove(globalXml, i)
+    end
+  end
+
+  table.insert(globalXml, hudPanel)
+
+  Wait.frames(function()
+    local s, err = pcall(function() Global.UI.setXmlTable(globalXml) end)
+    if not s then
+      print("pushHudToGlobal: Global.UI.setXmlTable failed: "..tostring(err))
+    else
+      -- Immediately mirror the current names and key values into Global HUD (best-effort)
+      refresh()
+    end
+  end, 1)
 end
 
 function buildUI()
+  -- load shared assets
   loadAssets(rules.art.graphics)
 
   local defaults = makeDefaults(rules)
+  local scoreboardPanel = buildScoreboardPanel(defaults)
+  local hudPanel = buildHUDPanel(defaults)
 
-  Wait.frames(function() buildHUD(defaults) end, 20)
+  -- Set the scoreboard UI on this object (self.UI)
+  local xml = { defaults, scoreboardPanel }
+  Wait.frames(function() self.UI.setXmlTable(xml) end, 1)
 
-  buildScoreboard(defaults)
+  -- Publish the HUD to Global.UI so it appears alongside the original HUD
+  pushHudToGlobal()
 end
 
 function loadGM()
@@ -1973,7 +2040,7 @@ function setTacOp(pl, guid)
   local selector = atrTacOp(pl, "dropdown")
   local display = atrTacOp(pl, "display")
   local obj = getObjectFromGUID(guid)
-  local name = obj.getName()
+  local name = obj and obj.getName() or ""
   hideUI(selector)
 
   setUIValue(atrTacOp(pl, "streamer"), name) -- streamer field kept for compatibility but not used elsewhere
@@ -1997,6 +2064,10 @@ function refreshPrimaryOpUI(pl)
     newstr = string.format("%d", score)
   end
   setUIValue(atrPrimaryOp(pl, "amount"), newstr)
+
+  -- mirror to published HUD
+  local guid = self.getGUID()
+  pcall(function() Global.UI.setValue(guid .. "_" .. atrPrimaryOp(pl, "amount"), newstr) end)
 end
 
 function refreshKillOpUI(pl)
@@ -2009,6 +2080,9 @@ function refreshKillOpUI(pl)
     newstr = string.format("%d", killop.score)
   end
   setUIValue(atrKillOp(pl, "amount"), newstr)
+
+  local guid = self.getGUID()
+  pcall(function() Global.UI.setValue(guid .. "_" .. atrKillOp(pl, "amount"), newstr) end)
 end
 
 function refreshPrimaryOpScore(pl)
@@ -2043,6 +2117,9 @@ function refreshBonusUI(pl)
     newstr = string.format("%d", value)
   end
   setUIValue("kts__bonus_display_player"..pl, newstr)
+
+  local guid = self.getGUID()
+  pcall(function() Global.UI.setValue(guid .. "_kts__bonus_display_player"..pl, newstr) end)
 end
 
 function setBonusScore(pl, val)
@@ -2067,7 +2144,6 @@ function onTacOpReveal(player, val, id)
   hideUI(revealButton)
   showUI(display)
 
-  setUIValue(atrTacOp(pl, "streamer"), name)
   scoring[pl].tacop.revealed = true
 end
 
@@ -2085,7 +2161,6 @@ function onPrimaryOpReveal(player, val, id)
   hideUI(revealButton)
   showUI(display)
 
-  setUIValue(atrPrimaryOp(pl, "streamer"), name)
   scoring[pl].primary.revealed = true
   
   if allowRecord(pl, true) then
@@ -2143,6 +2218,7 @@ function refreshScoreUI(pl)
   local primary_string = string.format("%d/%d", primary, rules.scoring.primary.max)
   local grand = string.format("%d", crit + tac + kill + primary)
 
+  -- Update scoreboard panel (object-local IDs)
   setUIValue("kts__critoptotal_player"..pl, crit_string)
   setUIValue("kts__tacoptotal_player"..pl, tac_string)
   setUIValue("kts__killoptotal_player"..pl, kill_string)
@@ -2155,6 +2231,17 @@ function refreshScoreUI(pl)
   else
     hideUI("kts__grandtotal_max_player"..pl)
   end
+
+  -- Also update published Global HUD elements (GUID-prefixed ids) so global HUD shows same values
+  local guid = self.getGUID()
+  local pref = guid .. "_"
+  pcall(function()
+    pcall(function() Global.UI.setValue(pref .. "kts__critoptotal_player"..pl, crit_string) end)
+    pcall(function() Global.UI.setValue(pref .. "kts__tacoptotal_player"..pl, tac_string) end)
+    pcall(function() Global.UI.setValue(pref .. "kts__killoptotal_player"..pl, kill_string) end)
+    pcall(function() Global.UI.setValue(pref .. "kts__primaryoptotal_player"..pl, primary_string) end)
+    pcall(function() Global.UI.setValue(pref .. "kts__grandtotal_player"..pl, grand) end)
+  end)
 end
 
 function updateScoreUI(pl)
@@ -2210,6 +2297,11 @@ function setInitiativeUI(pl, round, value)
     setUIAttribute(toggleID, "image", "initiativeOff")
     setUIAttribute(displayID, "image", "initiativeOff")
   end
+
+  -- mirror to Global.UI GUID-prefixed initiative display too
+  local guid = self.getGUID()
+  local pref = guid .. "_"
+  pcall(function() Global.UI.setAttribute(pref .. "kts__initiative_display_player"..pl, "image", value and "initiativeOn" or "initiativeOff") end)
 end
 
 function dispatchGameLogScoringEvent()
@@ -2246,10 +2338,15 @@ function updateInitiativeUI()
     showUI("kts__initiative_display_player"..ip)
     hideUI("kts__initiative_display_player"..np)
     setUIValue("kts__round_current", "Round "..round)
+    -- mirror to Global HUD
+    local guid = self.getGUID()
+    pcall(function() Global.UI.setValue(guid .. "_kts__round_current", "Round "..round) end)
   else
     hideUI("kts__initiative_display_player1")
     hideUI("kts__initiative_display_player2")
     setUIValue("kts__round_current", "Pre game")
+    local guid = self.getGUID()
+    pcall(function() Global.UI.setValue(guid .. "_kts__round_current", "Pre game") end)
   end
 end
 
@@ -2287,6 +2384,9 @@ function refreshCommandPoints(pl)
   local ncpv = string.format("%d CP", val)
   local uiid = "kts__command_player"..pl
   setUIValue(uiid, ncpv)
+  -- mirror to published Global HUD GUID-prefixed
+  local guid = self.getGUID()
+  pcall(function() Global.UI.setValue(guid .. "_" .. uiid, ncpv) end)
 end
 
 function setCommandPoints(pl, val)
@@ -2300,7 +2400,7 @@ function onCommandPointUpPressed(player, val, id)
   setCommandPoints(pl, scoring[pl].command + 1)
 
   local p = Player[player.color]
-  local name = p.steam_name
+  local name = p and p.steam_name or ""
   if name == nil or name == "" then
     name = tostring(p.color) .. " player"
   end
@@ -2313,7 +2413,7 @@ function onCommandPointDownPressed(player, val, id)
   setCommandPoints(pl, scoring[pl].command - 1)
 
   local p = Player[player.color]
-  local name = p.steam_name
+  local name = p and p.steam_name or ""
   if name == nil or name == "" then
     name = tostring(p.color) .. " player"
   end
