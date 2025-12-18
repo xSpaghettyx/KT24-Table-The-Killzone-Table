@@ -1,4 +1,15 @@
--- KT24 Base Table Scoreboard for Multiplayer Gamemode Spaghetty Mod --
+-- KT24 Base Table Scoreboard Spaghetty Mod (Duplicate: Yellow/Teal, Independent HUD published to Global.UI)
+-- Changes:
+--  - Added safe (pcall) wrappers around Global.UI and Timer calls so the script silently returns
+--    when Global or Timer errors occur (prevents "Object reference not set" uncaught errors).
+--  - HUD published to Global.UI (GUID-prefixed IDs) so it coexists with the preloaded/global HUD
+--  - HUD panel is offset upward by its own height when built (offsetXY applied)
+--  - Player name fields for Yellow/Teal dynamically show the seated player's Steam name,
+--    and revert back to "Yellow"/"Teal" when that seat is unoccupied or player changes color.
+--  - Mirroring updates to the published Global HUD (GUID-prefixed IDs) where relevant.
+--  - Added removePublishedHud() which removes the GUID-prefixed HUD panel from Global.UI.
+--    That function is called from onDestroy and (best-effort) container-related handlers,
+--    and exposed as a context menu item so you can remove the published HUD manually.
 
 function getCurrentAssets()
   local status, current = pcall(UI.getCustomAssets)
@@ -22,7 +33,7 @@ end
 function safeSetCustomAssets(newAssets)
   local currentAssets = getCurrentAssets()
   local merged = mergeAssets(currentAssets, newAssets)
-  UI.setCustomAssets(merged)
+  pcall(function() UI.setCustomAssets(merged) end)
 end
 
 
@@ -89,7 +100,7 @@ opMap = {
 -- Changed default players to Yellow and Teal
 defaultSettings = [[{
   "packet":{
-    "name":"KT24",
+    "name":"Multiplayer",
     "players":[
       "Yellow",
       "Teal"
@@ -166,9 +177,9 @@ defaultSettings = [[{
         "logoHeight":150
       },
       "scoreboard":{
-        "bannerWidth":700,
+        "bannerWidth":680,
         "bannerHeight":128,
-        "width":750,
+        "width":680,
         "primaryColumns":3,
         "layFlat":true
       }
@@ -223,7 +234,27 @@ end
 -- require("base-board/legacy-mission-data")
 -- require("base-board/panel-buttons")
 
--- IMPORTANT: this duplicated object must not touch the original/global HUD values directly.
+-- Helpers: safe wrappers for Global.UI to avoid uncaught "Object reference not set" errors
+local function safeGlobalGetXmlTable()
+  local ok, res = pcall(function() return Global and Global.UI and Global.UI.getXmlTable and Global.UI.getXmlTable() or nil end)
+  if ok then return res end
+  return nil
+end
+
+local function safeGlobalSetXmlTable(xml)
+  local ok, res = pcall(function() if Global and Global.UI and Global.UI.setXmlTable then Global.UI.setXmlTable(xml) end end)
+  return ok
+end
+
+local function safeGlobalSetValue(id, value)
+  pcall(function() if Global and Global.UI and Global.UI.setValue then Global.UI.setValue(id, value) end end)
+end
+
+local function safeGlobalSetAttribute(id, attr, value)
+  pcall(function() if Global and Global.UI and Global.UI.setAttribute then Global.UI.setAttribute(id, attr, value) end end)
+end
+
+-- IMPORTANT: this duplicated object must not touch the original/global HUD values directly without pcall.
 -- We build a HUD panel with GUID-prefixed IDs and publish that panel to Global.UI so it appears
 -- alongside the preloaded/global HUD. The IDs are unique (prefixed by this object's GUID)
 -- so no collision or value-sharing occurs.
@@ -274,10 +305,8 @@ function refresh()
     -- object-local scoreboard name (unchanged)
     setUIValue(uiid, playerNames[p])
 
-    -- mirrored to published Global HUD name field (GUID-prefixed)
-    pcall(function()
-      Global.UI.setValue(pref .. uiid, playerNames[p])
-    end)
+    -- mirrored to published Global HUD name field (GUID-prefixed) -- best-effort
+    safeGlobalSetValue(pref .. uiid, playerNames[p])
 
     -- update panel colors for both object-local and global HUD (GUID-prefixed)
     local color = Color.fromString(p)
@@ -286,10 +315,8 @@ function refresh()
     setUIAttribute(uiid.."_panel", "color", "#"..color1:toHex())
     setUIAttribute(uiid.."_panel2", "color", "#"..color2:toHex())
 
-    pcall(function()
-      Global.UI.setAttribute(pref .. uiid.."_panel", "color", "#"..color1:toHex())
-      Global.UI.setAttribute(pref .. uiid.."_panel2", "color", "#"..color2:toHex())
-    end)
+    safeGlobalSetAttribute(pref .. uiid.."_panel", "color", "#"..color1:toHex())
+    safeGlobalSetAttribute(pref .. uiid.."_panel2", "color", "#"..color2:toHex())
   end
 
   refreshAll()
@@ -1850,7 +1877,8 @@ function buildHUDPanel(def)
         class="mainPanel",
         width=uiMiddleZone,
         height=uiHeight/2,
-        rectAlignment="LowerCenter"
+        rectAlignment="LowerCenter",
+        color="rgba(0,0,0,0)"   -- make panel fully transparent
       },
       children={
         {
@@ -1858,11 +1886,12 @@ function buildHUDPanel(def)
           attributes={
             class="title2",
             fontSize=uiHeight*0.3,
-            id=guidPrefix .. "_kts__round_current"
+            id=guidPrefix .. "_kts__round_current",
+            color="rgba(0,0,0,0)",     -- text fully transparent
+            outline="rgba(0,0,0,0)"   -- ensure outline is also invisible
           },
           value="KT 24"
         },
-
       }
     },
 
@@ -1897,7 +1926,8 @@ function buildHUDPanel(def)
         active=logoVisible
       }
     }
-  }
+}
+
 
   local basePanel = {
     tag="Panel",
@@ -1918,26 +1948,27 @@ function buildHUDPanel(def)
 end
 
 -- Publish the built HUD to Global.UI so it appears alongside the preloaded/global HUD.
+-- This is guarded; failures become silent exits.
 function pushHudToGlobal()
   if not buildHUDPanel then
-    print("pushHudToGlobal: buildHUDPanel not found")
     return
   end
 
-  local defaults = makeDefaults and makeDefaults(rules) or nil
-  local hudPanel = buildHUDPanel(defaults)
-  if not hudPanel then
-    print("pushHudToGlobal: buildHUDPanel returned nil")
+  local defaults = (makeDefaults and makeDefaults(rules)) or nil
+
+  local ok, hudPanel = pcall(function() return buildHUDPanel(defaults) end)
+  if not ok or not hudPanel then
+    -- silent exit on build failure
     return
   end
 
   -- Ensure visibility is public
-  if not hudPanel.attributes then hudPanel.attributes = {} end
+  hudPanel.attributes = hudPanel.attributes or {}
   hudPanel.attributes.visibility = ""
 
-  -- Append into existing Global.UI
-  local ok, globalXml = pcall(function() return Global.UI.getXmlTable() end)
-  if not ok or type(globalXml) ~= "table" then
+  -- Get existing Global UI (safe)
+  local globalXml = safeGlobalGetXmlTable()
+  if type(globalXml) ~= "table" then
     globalXml = {}
   end
 
@@ -1951,15 +1982,15 @@ function pushHudToGlobal()
 
   table.insert(globalXml, hudPanel)
 
-  Wait.frames(function()
-    local s, err = pcall(function() Global.UI.setXmlTable(globalXml) end)
-    if not s then
-      print("pushHudToGlobal: Global.UI.setXmlTable failed: "..tostring(err))
-    else
-      -- Immediately mirror the current names and key values into Global HUD (best-effort)
-      refresh()
-    end
-  end, 1)
+  -- Apply to Global.UI (safe)
+  local applied = safeGlobalSetXmlTable(globalXml)
+  if not applied then
+    -- silent exit if Global.UI not available
+    return
+  end
+
+  -- Mirror current names and key values into Global HUD (best-effort)
+  pcall(function() refresh() end)
 end
 
 function buildUI()
@@ -1970,12 +2001,12 @@ function buildUI()
   local scoreboardPanel = buildScoreboardPanel(defaults)
   local hudPanel = buildHUDPanel(defaults)
 
-  -- Set the scoreboard UI on this object (self.UI)
+  -- Set the scoreboard UI on this object (self.UI) -- safe
   local xml = { defaults, scoreboardPanel }
-  Wait.frames(function() self.UI.setXmlTable(xml) end, 1)
+  Wait.frames(function() pcall(function() self.UI.setXmlTable(xml) end) end, 1)
 
-  -- Publish the HUD to Global.UI so it appears alongside the original HUD
-  pushHudToGlobal()
+  -- Publish the HUD to Global.UI so it appears alongside the original HUD (safe)
+  pcall(function() pushHudToGlobal() end)
 end
 
 function loadGM()
@@ -1985,12 +2016,16 @@ function loadGM()
   setup(settings)
   buildUI()
   Wait.frames(refresh, 10)
-  Timer.create({
-    identifier=self.getGUID(),
-    function_name="checkPlayerHands",
-    delay=1,
-    repetitions=0
-  })
+
+  -- Timer.create may throw if identifier already exists. Guard it so errors are silent.
+  pcall(function()
+    Timer.create({
+      identifier=self.getGUID(),
+      function_name="checkPlayerHands",
+      delay=1,
+      repetitions=0
+    })
+  end)
 end
 
 function onSave()
@@ -2019,21 +2054,95 @@ function checkPlayerHands()
   end
 end
 
-function onLoad(state)
-  self.setTags({scoreboardTag})
-  self.addContextMenuItem("Reset Scoreboard", resetScoring, false)
-  if state then
-    local state = JSON.decode(state)
-    if state then
-      players = state["splayers"] or players
-      playerNumber = state["splayerNumber"] or playerNumber
-      rules = state["srules"] or rules
-      scoring = state["sscoring"] or scoring
-      result = state["sresult"] or {}
+-- Remove the published HUD for this object from Global.UI.
+function removePublishedHud()
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if not guid then return end
+  local hudId = guid .. "_kts__hud_panel"
+
+  local globalXml = safeGlobalGetXmlTable()
+  if type(globalXml) ~= "table" then
+    return
+  end
+
+  local removed = false
+  for i = #globalXml, 1, -1 do
+    local node = globalXml[i]
+    if node and node.attributes and node.attributes.id == hudId then
+      table.remove(globalXml, i)
+      removed = true
     end
   end
 
-  loadGM()
+  if removed then
+    safeGlobalSetXmlTable(globalXml)
+  end
+end
+
+-- Context menu wrapper so user can remove HUD manually
+function removePublishedHudContext(player_color)
+  pcall(removePublishedHud)
+end
+
+-- Ensure the context menu allows manual removal (added during onLoad below)
+-- Also ensure the HUD is removed when this object is destroyed or (best-effort) placed in a container.
+
+function onDestroy()
+  -- object is being destroyed, remove the published HUD (best-effort)
+  pcall(removePublishedHud)
+end
+
+-- Some container-related handlers may or may not be invoked depending on TTS environment.
+-- Add multiple best-effort hooks so placing the object in a bag/container will attempt to remove the HUD.
+function onEnterContainer(container)
+  pcall(removePublishedHud)
+end
+
+function onPickedUp(player_color)
+  -- when picked up we don't necessarily want to remove HUD; do nothing
+end
+
+-- Best-effort container callback signature variations (in case environment calls them)
+function onObjectEnterContainer(container, object)
+  if object == self then
+    pcall(removePublishedHud)
+  end
+end
+
+function onPutIntoContainer(container, player_color)
+  pcall(removePublishedHud)
+end
+
+-- onLoad: initialize safely and add context menu to remove HUD
+function onLoad(state)
+  -- Wrap in pcall/xpcall to avoid unhandled errors during initialization
+  local ok, err = pcall(function()
+    if type(self) == "table" and type(self.setTags) == "function" then
+      pcall(function() self.setTags({scoreboardTag}) end)
+    end
+    if type(self) == "table" and type(self.addContextMenuItem) == "function" then
+      pcall(function() self.addContextMenuItem("Reset Scoreboard", resetScoring, false) end)
+      pcall(function() self.addContextMenuItem("Remove Published HUD", removePublishedHudContext, false) end)
+    end
+
+    if state then
+      local ok2, decoded = pcall(JSON.decode, state)
+      if ok2 and type(decoded) == "table" then
+        players = decoded["splayers"] or players
+        playerNumber = decoded["splayerNumber"] or playerNumber
+        rules = decoded["srules"] or rules
+        scoring = decoded["sscoring"] or scoring
+        result = decoded["sresult"] or {}
+      end
+    end
+
+    -- Defer loadGM to a short frame delay to reduce race conditions with other objects / Global UI
+    Wait.frames(function()
+      pcall(function() loadGM() end)
+    end, 2)
+  end)
+  -- silent if initialization errors occurred
 end
 
 function setTacOp(pl, guid)
@@ -2066,8 +2175,11 @@ function refreshPrimaryOpUI(pl)
   setUIValue(atrPrimaryOp(pl, "amount"), newstr)
 
   -- mirror to published HUD
-  local guid = self.getGUID()
-  pcall(function() Global.UI.setValue(guid .. "_" .. atrPrimaryOp(pl, "amount"), newstr) end)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    pcall(function() Global.UI.setValue(guid .. "_" .. atrPrimaryOp(pl, "amount"), newstr) end)
+  end
 end
 
 function refreshKillOpUI(pl)
@@ -2081,8 +2193,11 @@ function refreshKillOpUI(pl)
   end
   setUIValue(atrKillOp(pl, "amount"), newstr)
 
-  local guid = self.getGUID()
-  pcall(function() Global.UI.setValue(guid .. "_" .. atrKillOp(pl, "amount"), newstr) end)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    pcall(function() Global.UI.setValue(guid .. "_" .. atrKillOp(pl, "amount"), newstr) end)
+  end
 end
 
 function refreshPrimaryOpScore(pl)
@@ -2118,8 +2233,11 @@ function refreshBonusUI(pl)
   end
   setUIValue("kts__bonus_display_player"..pl, newstr)
 
-  local guid = self.getGUID()
-  pcall(function() Global.UI.setValue(guid .. "_kts__bonus_display_player"..pl, newstr) end)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    pcall(function() Global.UI.setValue(guid .. "_kts__bonus_display_player"..pl, newstr) end)
+  end
 end
 
 function setBonusScore(pl, val)
@@ -2232,16 +2350,17 @@ function refreshScoreUI(pl)
     hideUI("kts__grandtotal_max_player"..pl)
   end
 
-  -- Also update published Global HUD elements (GUID-prefixed ids) so global HUD shows same values
-  local guid = self.getGUID()
-  local pref = guid .. "_"
-  pcall(function()
-    pcall(function() Global.UI.setValue(pref .. "kts__critoptotal_player"..pl, crit_string) end)
-    pcall(function() Global.UI.setValue(pref .. "kts__tacoptotal_player"..pl, tac_string) end)
-    pcall(function() Global.UI.setValue(pref .. "kts__killoptotal_player"..pl, kill_string) end)
-    pcall(function() Global.UI.setValue(pref .. "kts__primaryoptotal_player"..pl, primary_string) end)
-    pcall(function() Global.UI.setValue(pref .. "kts__grandtotal_player"..pl, grand) end)
-  end)
+  -- Also update published Global HUD elements (GUID-prefixed ids) so global HUD shows same values (best-effort)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    local pref = guid .. "_"
+    safeGlobalSetValue(pref .. "kts__critoptotal_player"..pl, crit_string)
+    safeGlobalSetValue(pref .. "kts__tacoptotal_player"..pl, tac_string)
+    safeGlobalSetValue(pref .. "kts__killoptotal_player"..pl, kill_string)
+    safeGlobalSetValue(pref .. "kts__primaryoptotal_player"..pl, primary_string)
+    safeGlobalSetValue(pref .. "kts__grandtotal_player"..pl, grand)
+  end
 end
 
 function updateScoreUI(pl)
@@ -2298,10 +2417,13 @@ function setInitiativeUI(pl, round, value)
     setUIAttribute(displayID, "image", "initiativeOff")
   end
 
-  -- mirror to Global.UI GUID-prefixed initiative display too
-  local guid = self.getGUID()
-  local pref = guid .. "_"
-  pcall(function() Global.UI.setAttribute(pref .. "kts__initiative_display_player"..pl, "image", value and "initiativeOn" or "initiativeOff") end)
+  -- mirror to Global.UI GUID-prefixed initiative display too (best-effort)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    local pref = guid .. "_"
+    safeGlobalSetAttribute(pref .. "kts__initiative_display_player"..pl, "image", value and "initiativeOn" or "initiativeOff")
+  end
 end
 
 function dispatchGameLogScoringEvent()
@@ -2339,14 +2461,20 @@ function updateInitiativeUI()
     hideUI("kts__initiative_display_player"..np)
     setUIValue("kts__round_current", "Round "..round)
     -- mirror to Global HUD
-    local guid = self.getGUID()
-    pcall(function() Global.UI.setValue(guid .. "_kts__round_current", "Round "..round) end)
+    local guid = nil
+    pcall(function() guid = self.getGUID() end)
+    if guid then
+      safeGlobalSetValue(guid .. "_kts__round_current", "Round "..round)
+    end
   else
     hideUI("kts__initiative_display_player1")
     hideUI("kts__initiative_display_player2")
     setUIValue("kts__round_current", "Pre game")
-    local guid = self.getGUID()
-    pcall(function() Global.UI.setValue(guid .. "_kts__round_current", "Pre game") end)
+    local guid = nil
+    pcall(function() guid = self.getGUID() end)
+    if guid then
+      safeGlobalSetValue(guid .. "_kts__round_current", "Pre game")
+    end
   end
 end
 
@@ -2385,8 +2513,11 @@ function refreshCommandPoints(pl)
   local uiid = "kts__command_player"..pl
   setUIValue(uiid, ncpv)
   -- mirror to published Global HUD GUID-prefixed
-  local guid = self.getGUID()
-  pcall(function() Global.UI.setValue(guid .. "_" .. uiid, ncpv) end)
+  local guid = nil
+  pcall(function() guid = self.getGUID() end)
+  if guid then
+    pcall(function() Global.UI.setValue(guid .. "_" .. uiid, ncpv) end)
+  end
 end
 
 function setCommandPoints(pl, val)
