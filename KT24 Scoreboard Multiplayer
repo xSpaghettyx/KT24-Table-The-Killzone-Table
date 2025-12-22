@@ -1,15 +1,4 @@
 -- KT24 Base Table Scoreboard Spaghetty Mod (Duplicate: Yellow/Teal, Independent HUD published to Global.UI)
--- Changes:
---  - Added safe (pcall) wrappers around Global.UI and Timer calls so the script silently returns
---    when Global or Timer errors occur (prevents "Object reference not set" uncaught errors).
---  - HUD published to Global.UI (GUID-prefixed IDs) so it coexists with the preloaded/global HUD
---  - HUD panel is offset upward by its own height when built (offsetXY applied)
---  - Player name fields for Yellow/Teal dynamically show the seated player's Steam name,
---    and revert back to "Yellow"/"Teal" when that seat is unoccupied or player changes color.
---  - Mirroring updates to the published Global HUD (GUID-prefixed IDs) where relevant.
---  - Added removePublishedHud() which removes the GUID-prefixed HUD panel from Global.UI.
---    That function is called from onDestroy and (best-effort) container-related handlers,
---    and exposed as a context menu item so you can remove the published HUD manually.
 
 function getCurrentAssets()
   local status, current = pcall(UI.getCustomAssets)
@@ -1817,7 +1806,7 @@ local function hudCommandElement_local(ch, guidPrefix, x, y, w, h, layout, pl, s
           text="+", fontSize=h-8,
           rectAlignment="MiddleRight",
           visibility=vp,
-          id=guid .. "_kts__command_increase_player"..pl
+          id = guid .. "_kts__command_player"..pl.."_increase"
         }
       },
       {
@@ -1828,7 +1817,7 @@ local function hudCommandElement_local(ch, guidPrefix, x, y, w, h, layout, pl, s
           text="-", fontSize=h-8,
           rectAlignment="MiddleLeft",
           visibility=vp,
-          id=guid .. "_kts__command_decrease_player"..pl
+          id = guid .. "_kts__command_player"..pl.."_decrease"
         }
       }
     }
@@ -2017,7 +2006,6 @@ function loadGM()
   buildUI()
   Wait.frames(refresh, 10)
 
-  -- Timer.create may throw if identifier already exists. Guard it so errors are silent.
   pcall(function()
     Timer.create({
       identifier=self.getGUID(),
@@ -2114,17 +2102,10 @@ function onPutIntoContainer(container, player_color)
   pcall(removePublishedHud)
 end
 
--- onLoad: initialize safely and add context menu to remove HUD
 function onLoad(state)
-  -- Wrap in pcall/xpcall to avoid unhandled errors during initialization
-  local ok, err = pcall(function()
-    if type(self) == "table" and type(self.setTags) == "function" then
-      pcall(function() self.setTags({scoreboardTag}) end)
-    end
-    if type(self) == "table" and type(self.addContextMenuItem) == "function" then
-      pcall(function() self.addContextMenuItem("Reset Scoreboard", resetScoring, false) end)
-      pcall(function() self.addContextMenuItem("Remove Published HUD", removePublishedHudContext, false) end)
-    end
+  self.setTags({scoreboardTag})
+  self.addContextMenuItem("Reset Scoreboard", resetScoring, false)
+  self.addContextMenuItem("Remove Published HUD", removePublishedHudContext, false)
 
     if state then
       local ok2, decoded = pcall(JSON.decode, state)
@@ -2137,12 +2118,7 @@ function onLoad(state)
       end
     end
 
-    -- Defer loadGM to a short frame delay to reduce race conditions with other objects / Global UI
-    Wait.frames(function()
-      pcall(function() loadGM() end)
-    end, 2)
-  end)
-  -- silent if initialization errors occurred
+	loadGM()
 end
 
 function setTacOp(pl, guid)
@@ -2305,17 +2281,17 @@ function onDecreaseKillOp(player, val, id)
 end
 
 function onIncreasePrimaryOp(player, val, id)
-  local pl = tonumber(string.gmatch(id, "(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))
   setPrimaryOpScore(pl, scoring[pl].primary.score + 1)
 end
 
 function onDecreasePrimaryOp(player, val, id)
-  local pl = tonumber(string.gmatch(id, "(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))
   setPrimaryOpScore(pl, scoring[pl].primary.score - 1)
 end
 
 function onIncreaseBonus(player, val, id)
-  local pl = tonumber(string.gmatch(id, "(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))
   if allowRecord(pl, true) then
     setBonusScore(pl, scoring[pl].secondary[4] + 1)
   else
@@ -2324,7 +2300,7 @@ function onIncreaseBonus(player, val, id)
 end
 
 function onDecreaseBonus(player, val, id)
-  local pl = tonumber(string.gmatch(id, "(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))
   setBonusScore(pl, scoring[pl].secondary[4] - 1)
 end
 
@@ -2527,7 +2503,7 @@ function setCommandPoints(pl, val)
 end
 
 function onCommandPointUpPressed(player, val, id)
-  local pl = tonumber(string.gmatch(id, "player(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))  -- FIXED
   setCommandPoints(pl, scoring[pl].command + 1)
 
   local p = Player[player.color]
@@ -2540,7 +2516,7 @@ function onCommandPointUpPressed(player, val, id)
 end
 
 function onCommandPointDownPressed(player, val, id)
-  local pl = tonumber(string.gmatch(id, "player(%d+)")())
+  local pl = tonumber(string.match(id, "player(%d+)"))  -- FIXED
   setCommandPoints(pl, scoring[pl].command - 1)
 
   local p = Player[player.color]
@@ -2551,6 +2527,7 @@ function onCommandPointDownPressed(player, val, id)
 
   broadcastToAll(name .. " has SPENT CP (now at " .. scoring[pl].command .. ")", stringColorToRGB(p.color))
 end
+
 
 function allowRecord(pl, increase, primary)
   -- simplified: preserve default permissive behavior
