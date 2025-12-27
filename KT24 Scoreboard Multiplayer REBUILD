@@ -1967,6 +1967,8 @@ function buildHUD(def)
   local panelID = "kts__hud_panel"
   local chl = {}
   local chr = {}
+  local chul = {}
+  local chur = {}
   local logoVisible = rules.art.graphics.eventLogo ~= nil
   local uiSubWidth = uiWidth*0.5
   local logoWidth = rules.art.gui.overlay.logoWidth
@@ -1991,15 +1993,15 @@ function buildHUD(def)
   hudNameElement(chr, -2, -2, nameplateWidth, uiHeight*0.33, "UpperRight", 2)
   hudCommandElement(chr, -2, 2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 2)
 
-  hudScoreElement(chl, 0, uiHeight+5, uiHeight, "LowerRight", 3)
-  hudInitiativeElement(chl, -(uiHeight + 4), uiHeight-4, 32, "UpperRight", 3)
-  hudNameElement(chl, 2, uiHeight-2, nameplateWidth, uiHeight*0.33, "UpperLeft", 3)
-  hudCommandElement(chl, 2, uiHeight+2, nameplateWidth, uiHeight*0.66-6, "LowerLeft", 3)
+  hudScoreElement(chul, 0, 5, uiHeight, "LowerRight", 3)
+  hudInitiativeElement(chul, -(uiHeight + 4), -4, 32, "UpperRight", 3)
+  hudNameElement(chul, 2, -2, nameplateWidth, uiHeight*0.33, "UpperLeft", 3)
+  hudCommandElement(chul, 2, 2, nameplateWidth, uiHeight*0.66-6, "LowerLeft", 3)
 
-  hudScoreElement(chr, 0, uiHeight+5, uiHeight, "LowerLeft", 4)
-  hudInitiativeElement(chr, (uiHeight + 4), uiHeight-4, 32, "UpperLeft", 4)
-  hudNameElement(chr, -2, uiHeight-2, nameplateWidth, uiHeight*0.33, "UpperRight", 4)
-  hudCommandElement(chr, -2, uiHeight+2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 4)
+  hudScoreElement(chur, 0, 5, uiHeight, "LowerLeft", 4)
+  hudInitiativeElement(chur, (uiHeight + 4), -4, 32, "UpperLeft", 4)
+  hudNameElement(chur, -2, -2, nameplateWidth, uiHeight*0.33, "UpperRight", 4)
+  hudCommandElement(chur, -2, 2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 4)
 
   local ch = {
     {
@@ -2024,7 +2026,28 @@ function buildHUD(def)
 
       }
     },
-
+        {
+      tag="Panel",
+      attributes={
+        class="mainPanel",
+        width=uiSubWidth,
+        height=uiHeight,
+        rectAlignment="UpperLeft",
+        offsetXY="0 62"
+      },
+      children=chul
+    },
+    {
+      tag="Panel",
+      attributes={
+        class="mainPanel",
+        width=uiSubWidth,
+        height=uiHeight,
+        rectAlignment="UpperRight",
+        offsetXY="0 62"
+      },
+      children=chur
+    },
         {
       tag="Panel",
       attributes={
@@ -2082,6 +2105,21 @@ function buildHUD(def)
     table.insert(oldUI, basePanel)
 
     Wait.frames(function() Global.UI.setXmlTable(oldUI) end, 1)
+  end
+end
+
+-- Remove HUD
+function removeHUD()
+  Global.call("removeHUDForObject", {panelID = panelID})
+end
+
+function onDestroy()
+  removeHUD()
+end
+
+function onObjectEnterContainer(container, object)
+  if object == self then
+    removeHUD()
   end
 end
 
