@@ -1,5 +1,5 @@
 -- KT24 Base Table Scoreboard Spaghetty Mod --
--- Slim version: removed overwatch, superdeck, factions, streamer UI and pregame checklist functionality
+-- Multiplayer Mode ver
 
 function getCurrentAssets()
   local status, current = pcall(UI.getCustomAssets)
@@ -77,7 +77,6 @@ require("base-board/scoreboard")
 end)
 __bundle_register("base-board/scoreboard", function(require, _LOADED, __bundle_register, __bundle_modules)
 
--- Basic scoreboard settings (streamer / pregame related parts removed)
 settingsNotes = "Scoreboard Settings"
 scoreboardTag = "Kill Team Scoreboard"
 
@@ -89,10 +88,12 @@ opMap = {
 
 defaultSettings = [[{
   "packet":{
-    "name":"KT24",
+    "name":"KT24 Multiplayer Mode",
     "players":[
       "Red",
-      "Blue"
+      "Blue",
+      "Yellow",
+      "Teal"
     ],
     "autoPromote":true
   },
@@ -166,9 +167,9 @@ defaultSettings = [[{
         "logoHeight":150
       },
       "scoreboard":{
-        "bannerWidth":700,
+        "bannerWidth":1400,
         "bannerHeight":128,
-        "width":750,
+        "width":1450,
         "primaryColumns":3,
         "layFlat":true
       }
@@ -177,7 +178,6 @@ defaultSettings = [[{
 }]]
 setupMessage = "Performing the scoreboard setup"
 
--- attribute helpers
 function atrName(s)
   return "kts__" .. s
 end
@@ -202,7 +202,7 @@ function atrTacOp(player, k)
   return string.format("kts__tacop_player%d_%s", player, k)
 end
 
-paramPlayer = {atrName("player1"), atrName("player2")}
+paramPlayer = {atrName("player1"), atrName("player2"), atrName("player3"), atrName("player4")}
 
 players = {}
 playerNames = {}
@@ -213,15 +213,9 @@ dropdowns = {}
 rules = {}
 scoring = {}
 
--- universal event handlers
-function onObjectDrop(player_color, dropped_object)
-  -- Keep minimal: original functionality complex and tied into pregame; trimmed out.
-end
 
--- remove pregame, streamer and overwatch related requires and code
--- require("base-board/pre-game-checklist")
--- require("base-board/legacy-mission-data")
--- require("base-board/panel-buttons")
+function onObjectDrop(player_color, dropped_object)
+end
 
 function getUIAttribute(id, attr)
   if UI.getAttribute(id, attr) ~= nil then
@@ -268,7 +262,6 @@ function refresh()
       playerNames[p] = p
     end
     setUIValue(uiid, playerNames[p])
-    -- previously set streamer UI; removed
     local color = Color.fromString(p)
     local color1 = color:lerp(Color(1, 1, 1), 0.25)
     local color2 = color:lerp(Color(1, 1, 1), 0.6)
@@ -280,14 +273,14 @@ function refresh()
 end
 
 function refreshAll()
-  for pl=1,2 do
+  for pl=1,4 do
     refreshCommandPoints(pl)
     refreshScoreUI(pl)
   end
 end
 
 function onPlayerChangeColor(pc)
-  if pc == "Red" or pc == "Blue" then
+  if pc == "Red" or pc == "Blue" or pc == "Yellow" or pc == "Teal" then
     if result == nil then result = {} end
     if result[Player[pc].steam_name] == nil then
       result[Player[pc].steam_name] = {}
@@ -407,6 +400,22 @@ function resetScoring()
       primary=makePrimaryOpScoreTable(),
       initiative=makeInitiativeScoreTable(),
       command=3
+    },
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
+    },
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
     }
   }
 end
@@ -457,15 +466,24 @@ function setup(settings)
   if not deepcompare(settings, rules, true) then
     local player1 = settings.packet.players[1]
     local player2 = settings.packet.players[2]
+    local player3 = settings.packet.players[3]
+    local player4 = settings.packet.players[4]
 
     players[player1] = paramPlayer[1]
     players[player2] = paramPlayer[2]
+    players[player3] = paramPlayer[3]
+    players[player4] = paramPlayer[4]
+    
     playerNumber[player1] = 1
     playerNumber[player2] = 2
+    playerNumber[player3] = 3
+    playerNumber[player4] = 4
     rules = settings
     resetScoring()
   end
 end
+
+-- UI Builder
 
 function buildScoreBanner(x, y, w, h)
   local ch = {}
@@ -593,9 +611,11 @@ end
 
 function buildOpRow(t, uy, x, y, w, round, op, op_type, gap)
   local ch={}
-  local primaryHeight = insertOpVps(ch, 0, 0, (w-gap)/2, round, op, op_type, 1)
+  local primaryHeight = insertOpVps(ch, 0, 0, (w-3*gap)/4, round, op, op_type, 3)
   local h=primaryHeight
-  insertOpVps(ch, (w-gap)/2 + gap, 0, (w-gap)/2, round, op, op_type, 2)
+  insertOpVps(ch, (w-3*gap)/4 + gap, 0, (w-3*gap)/4, round, op, op_type, 1)
+  insertOpVps(ch, (w-3*gap)/2 + 2*gap, 0, (w-3*gap)/4, round, op, op_type, 2)
+  insertOpVps(ch, (w-3*gap)/4*3 + 3*gap, 0, (w-3*gap)/4, round, op, op_type, 4)
   table.insert(t, {
     tag="Panel",
     attributes={
@@ -623,7 +643,7 @@ function buildInitiativeRow(t, uy, x, y, w, h, round)
         tag="Panel",
         attributes={
           class="bkgPanel",
-          width=130,
+          width=150,
           height=h
         },
         children={
@@ -643,7 +663,7 @@ function buildInitiativeRow(t, uy, x, y, w, h, round)
           onClick="onInitiativePressed",
           id=atrInitiative(1, round, "toggle"),
           width=h*0.75, height=h*0.75,
-          offsetXY = string.format("%f 0", -w/4)
+          offsetXY = string.format("%f 0", -w/8)
         }
       },
       {
@@ -653,7 +673,27 @@ function buildInitiativeRow(t, uy, x, y, w, h, round)
           onClick="onInitiativePressed",
           id=atrInitiative(2, round, "toggle"),
           width=h*0.75, height=h*0.75,
-          offsetXY = string.format("%f 0", w/4)
+          offsetXY = string.format("%f 0", w/8)
+        }
+      },
+      {
+        tag="Image",
+        attributes={
+          class="initiativeToggle",
+          onClick="onInitiativePressed",
+          id=atrInitiative(3, round, "toggle"),
+          width=h*0.75, height=h*0.75,
+          offsetXY = string.format("%f 0", -w/8*3)
+        }
+      },
+      {
+        tag="Image",
+        attributes={
+          class="initiativeToggle",
+          onClick="onInitiativePressed",
+          id=atrInitiative(4, round, "toggle"),
+          width=h*0.75, height=h*0.75,
+          offsetXY = string.format("%f 0", w/8*3)
         }
       }
     }
@@ -726,7 +766,7 @@ function buildCritOpTotalRow(t, uy, x, y, w, h)
           class="title2",
           fontSize=h*0.75,
           id="kts__critoptotal_player1",
-          offsetXY = string.format("%f 0", -w/4)
+          offsetXY = string.format("%f 0", -w/8)
         },
         value=string.format("0/%d", rules.scoring.critop.max)
       },
@@ -736,7 +776,27 @@ function buildCritOpTotalRow(t, uy, x, y, w, h)
           class="title2",
           fontSize=h*0.75,
           id="kts__critoptotal_player2",
-          offsetXY = string.format("%f 0", w/4)
+          offsetXY = string.format("%f 0", w/8)
+        },
+        value=string.format("0/%d", rules.scoring.critop.max)
+      },
+            {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__critoptotal_player3",
+          offsetXY = string.format("%f 0", -w/8*3)
+        },
+        value=string.format("0/%d", rules.scoring.critop.max)
+      },
+      {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__critoptotal_player4",
+          offsetXY = string.format("%f 0", w/8*3)
         },
         value=string.format("0/%d", rules.scoring.critop.max)
       }
@@ -778,7 +838,7 @@ function buildTacOpTotalRow(t, uy, x, y, w, h)
           class="title2",
           fontSize=h*0.75,
           id="kts__tacoptotal_player1",
-          offsetXY = string.format("%f 0", -w/4)
+          offsetXY = string.format("%f 0", -w/8)
         },
         value=string.format("0/%d", rules.scoring.tacop.max)
       },
@@ -788,7 +848,27 @@ function buildTacOpTotalRow(t, uy, x, y, w, h)
           class="title2",
           fontSize=h*0.75,
           id="kts__tacoptotal_player2",
-          offsetXY = string.format("%f 0", w/4)
+          offsetXY = string.format("%f 0", w/8)
+        },
+        value=string.format("0/%d", rules.scoring.tacop.max)
+      },
+            {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__tacoptotal_player3",
+          offsetXY = string.format("%f 0", -w/8*3)
+        },
+        value=string.format("0/%d", rules.scoring.tacop.max)
+      },
+      {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__tacoptotal_player4",
+          offsetXY = string.format("%f 0", w/8*3)
         },
         value=string.format("0/%d", rules.scoring.tacop.max)
       }
@@ -1121,9 +1201,11 @@ end
 
 function buildTacOpRow(ch, uy, x, y, w)
   local cch = {}
-  local celw = (w-4)/2
-  local h = buildTacOpCel(cch, 0, 0, 0, celw, 1)
-  buildTacOpCel(cch, 0, celw+4, 0, celw, 2)
+  local celw = (w-12)/4
+  local h = buildTacOpCel(cch, 0, 0, 0, celw, 3)
+  buildTacOpCel(cch, 0, celw+4, 0, celw, 1)
+  buildTacOpCel(cch, 0, celw*2+8, 0, celw, 2)
+  buildTacOpCel(cch, 0, celw*3+12, 0, celw, 4)
 
   table.insert(ch, {
     tag="Panel",
@@ -1141,9 +1223,11 @@ end
 
 function buildPrimaryRow(ch, uy, x, y, w)
   local cch = {}
-  local celw = (w-4)/2
-  local h = buildPrimaryOpCel(cch, 0, 0, 0, celw, 1)
-  buildPrimaryOpCel(cch, 0, celw+4, 0, celw, 2)
+  local celw = (w-12)/4
+  local h = buildPrimaryOpCel(cch, 0, 0, 0, celw, 3)
+  buildPrimaryOpCel(cch, 0, celw+4, 0, celw, 1)
+  buildPrimaryOpCel(cch, 0, celw*2+8, 0, celw, 2)
+  buildPrimaryOpCel(cch, 0, celw*3+12, 0, celw, 4)
 
   table.insert(ch, {
     tag="Panel",
@@ -1161,9 +1245,11 @@ end
 
 function buildKillOpRow(ch, uy, x, y, w)
   local cch = {}
-  local celw = (w-4)/2
-  local h = buildKillOpCel(cch, 0, 0, 0, celw, 1)
-  buildKillOpCel(cch, 0, celw+4, 0, celw, 2)
+  local celw = (w-12)/4
+  local h = buildKillOpCel(cch, 0, 0, 0, celw, 3)
+  buildKillOpCel(cch, 0, celw+4, 0, celw, 1)
+  buildKillOpCel(cch, 0, celw*2+8, 0, celw, 2)
+  buildKillOpCel(cch, 0, celw*3+12, 0, celw, 4)
 
   table.insert(ch, {
     tag="Panel",
@@ -1342,7 +1428,7 @@ function buildKillOpTotalRow(ch, uy, x, y, w)
           class="title2",
           fontSize=h*0.75,
           id="kts__killoptotal_player1",
-          offsetXY = string.format("%f 0", -w/4)
+          offsetXY = string.format("%f 0", -w/8)
         },
         value=string.format("0/%d", rules.scoring.killop.max)
       },
@@ -1352,7 +1438,27 @@ function buildKillOpTotalRow(ch, uy, x, y, w)
           class="title2",
           fontSize=h*0.75,
           id="kts__killoptotal_player2",
-          offsetXY = string.format("%f 0", w/4)
+          offsetXY = string.format("%f 0", w/8)
+        },
+        value=string.format("0/%d", rules.scoring.killop.max)
+      },
+            {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__killoptotal_player3",
+          offsetXY = string.format("%f 0", -w/8*3)
+        },
+        value=string.format("0/%d", rules.scoring.killop.max)
+      },
+      {
+        tag="Text",
+        attributes={
+          class="title2",
+          fontSize=h*0.75,
+          id="kts__killoptotal_player4",
+          offsetXY = string.format("%f 0", w/8*3)
         },
         value=string.format("0/%d", rules.scoring.killop.max)
       }
@@ -1379,7 +1485,7 @@ function buildGrandTotalRow(ch, uy, x, y, w)
           width=130,
           outline=rules.art.colors.highlight,
           outlineSize="3 -3",
-          offsetXY="-70, 0",
+          offsetXY="-180, 0",
           height=h
         },
         children={
@@ -1412,7 +1518,7 @@ function buildGrandTotalRow(ch, uy, x, y, w)
           width=130,
           outline=rules.art.colors.highlight,
           outlineSize="3 -3",
-          offsetXY="70, 0",
+          offsetXY="180, 0",
           height=h
         },
         children={
@@ -1437,6 +1543,72 @@ function buildGrandTotalRow(ch, uy, x, y, w)
             value="MAX"
           }
         }
+      },
+      {
+        tag="Panel",
+        attributes={
+          class="bkgPanel",
+          width=130,
+          outline=rules.art.colors.highlight,
+          outlineSize="3 -3",
+          offsetXY="-530, 0",
+          height=h
+        },
+        children={
+          {
+            tag="Text",
+            attributes={
+              id="kts__grandtotal_player3",
+              class="finalScore",
+              fontSize=100
+            },
+            value="0"
+          },
+          {
+            tag="Text",
+            attributes={
+              id="kts__grandtotal_max_player3",
+              class="finalScore",
+              fontSize=50,
+              offsetXY="-163 0",
+              active=false
+            },
+            value="MAX"
+          }
+        }
+      },
+      {
+        tag="Panel",
+        attributes={
+          class="bkgPanel",
+          width=130,
+          outline=rules.art.colors.highlight,
+          outlineSize="3 -3",
+          offsetXY="530, 0",
+          height=h
+        },
+        children={
+          {
+            tag="Text",
+            attributes={
+              id="kts__grandtotal_player4",
+              class="finalScore",
+              fontSize=100
+            },
+            value="0"
+          },
+          {
+            tag="Text",
+            attributes={
+              id="kts__grandtotal_max_player4",
+              class="finalScore",
+              fontSize=50,
+              offsetXY="163 0",
+              active=false
+            },
+            value="MAX"
+          }
+        }
       }
     }
   })
@@ -1452,12 +1624,13 @@ function buildScoreboard(def)
   local bannerHeight = rules.art.gui.scoreboard.bannerHeight or 150
   local bannerWidth = rules.art.gui.scoreboard.bannerWidth or uiWidth
 
-  --start ui parts
   table.insert(ch, buildScoreBanner(0,-5,bannerWidth, bannerHeight))
   uiHeight = uiHeight + bannerHeight + 10
 
-  table.insert(ch, buildNameplate(5, -uiHeight, halfPanel, 60, 1))
-  table.insert(ch, buildNameplate(halfPanel+9, -uiHeight, halfPanel, 60, 2))
+  table.insert(ch, buildNameplate(4, -uiHeight, (uiWidth-12)/4, 60, 3))
+  table.insert(ch, buildNameplate((uiWidth-12)/4+4, -uiHeight, (uiWidth-4)/4, 60, 1))
+  table.insert(ch, buildNameplate((uiWidth-12)/2+8, -uiHeight, (uiWidth-4)/4, 60, 2))
+  table.insert(ch, buildNameplate((uiWidth-12)/4*3+12, -uiHeight, (uiWidth-4)/4, 60, 4))
   uiHeight = uiHeight + 64
 
   local round = 1
@@ -1622,6 +1795,8 @@ function loadAssets(graphics)
   safeSetCustomAssets(assets)
 end
 
+-- HUD Builder
+
 function hudScoreElement(ch, x, y, s, layout, pl)
   local grandH = math.floor(s*0.75)
   local subH = s - grandH
@@ -1704,7 +1879,7 @@ end
 function hudNameElement(ch, x, y, w, h, layout, pl, suffix)
   local playerc = rules.packet.players[pl]
   local suffix = suffix or ""
-  table.insert(ch,{
+  table.insert(ch,{ --1888
     tag="Panel",
     attributes={
       class="bkgPanel",
@@ -1816,6 +1991,16 @@ function buildHUD(def)
   hudNameElement(chr, -2, -2, nameplateWidth, uiHeight*0.33, "UpperRight", 2)
   hudCommandElement(chr, -2, 2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 2)
 
+  hudScoreElement(chl, 0, uiHeight+5, uiHeight, "LowerRight", 3)
+  hudInitiativeElement(chl, -(uiHeight + 4), uiHeight-4, 32, "UpperRight", 3)
+  hudNameElement(chl, 2, uiHeight-2, nameplateWidth, uiHeight*0.33, "UpperLeft", 3)
+  hudCommandElement(chl, 2, uiHeight+2, nameplateWidth, uiHeight*0.66-6, "LowerLeft", 3)
+
+  hudScoreElement(chr, 0, uiHeight+5, uiHeight, "LowerLeft", 4)
+  hudInitiativeElement(chr, (uiHeight + 4), uiHeight-4, 32, "UpperLeft", 4)
+  hudNameElement(chr, -2, uiHeight-2, nameplateWidth, uiHeight*0.33, "UpperRight", 4)
+  hudCommandElement(chr, -2, uiHeight+2, nameplateWidth, uiHeight*0.66-6, "LowerRight", 4)
+
   local ch = {
     {
       tag="Panel",
@@ -1915,6 +2100,42 @@ function loadGM()
   local settings = JSON.decode(defaultSettings)
 
   setup(settings)
+
+    scoring = {
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
+    },
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
+    },
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
+    },
+    {
+      critop=makeOpScoreTable('critop'),
+      tacop=makeOpScoreTable('tacop'),
+      killop=makeKillOpScoreTable(),
+      primary=makePrimaryOpScoreTable(),
+      initiative=makeInitiativeScoreTable(),
+      command=3
+    }
+  }
+
   buildUI()
   Wait.frames(refresh, 10)
   Timer.create({
@@ -2253,16 +2474,25 @@ function updateInitiativeUI()
 end
 
 function toggleInitiative(pl, round)
-  local otherPlayer = (pl==1) and 2 or 1
   local si = scoring[pl].initiative
-  local osi = scoring[otherPlayer].initiative
   local value = not si[round]
+
   setInitiativeUI(pl, round, value)
   si[round] = value
-  if value and osi[round] then
-    toggleInitiative(otherPlayer, round)
+
+  if value then
+    for otherPl = 1, #scoring do
+      if otherPl ~= pl then
+        local osi = scoring[otherPl].initiative
+        if osi[round] then
+          setInitiativeUI(otherPl, round, false)
+          osi[round] = false
+        end
+      end
+    end
   end
 end
+
 
 function onInitiativePressed(player, val, id)
   local pl, round = string.gmatch(id, "(%d+)_(%d+)")()
