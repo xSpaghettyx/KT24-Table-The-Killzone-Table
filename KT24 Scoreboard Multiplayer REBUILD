@@ -1879,7 +1879,7 @@ end
 function hudNameElement(ch, x, y, w, h, layout, pl, suffix)
   local playerc = rules.packet.players[pl]
   local suffix = suffix or ""
-  table.insert(ch,{ --1888
+  table.insert(ch,{
     tag="Panel",
     attributes={
       class="bkgPanel",
