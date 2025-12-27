@@ -1,11 +1,17 @@
--- KT dice roller custom dice support Spaghetty Mod --
+-- KT dice roller Spaghetty Mod --
+-- Custom Dice Support
+-- Multiplayer Mode Support
 
 diceTabL = {}
 diceTabR = {}
+diceTabY = {}
+diceTabT = {}
 
 zoneGUIDs = {
     ["Red Dice Zone"]  = "13867f",
-    ["Blue Dice Zone"] = "e9f069"
+    ["Blue Dice Zone"] = "e9f069",
+    ["Yellow Dice Zone"]  = "241468",
+    ["Teal Dice Zone"] = "d2c53b"
 }
 
 local size = 1
@@ -15,98 +21,18 @@ local WantedDiceNumber=1
 local killTeam = 0
 local autoRoll2 = 0
 local frame = 0
-local menu = 1
+local menu = 0
 local enableUI = 0
 local tuto = 0
 local isRolling = {}
 
 function onLoad()
-  leftColor = "Red"
-  rightColor = "Blue"
+  leftColor = {"Red","Yellow"}
+  rightColor = {"Blue","Teal"}
+    self.addContextMenuItem("Multiplayer Mode ON", multiplayerModeON)
+    self.addContextMenuItem("Multiplayer Mode OFF", multiplayerModeOFF)
 
   self.registerCollisions(false)
-
-  Wait.frames(function()
-    displayGlobalUI()
-  end, 1)
-end
-
-function displayGlobalUI()
-  guid = self.getGUID();
-
-  if Global.UI.getAttribute("diceUI", "id") == nil then
-    local oldUI = Global.UI.getXml()
-    if oldUI == nil then
-			oldUI = ""
-		end
-
-    Global.UI.setXml(oldUI .. [[
-    <Panel id="diceUI"
-      allowDragging="true" restrictDraggingToParentBounds="false" returnToOriginalPositionWhenReleased="false"
-      height="80" width="500" rotation= "0 0 0" childAlignment="MiddleCenter" active="false" rectAlignment="UpperLeft">
-        <HorizontalLayout id="panelID" childAlignment="MiddleCenter">
-          <VerticalLayout>
-            <GridLayout cellSize="60 40" childAlignment="MiddleCenter">
-              <Button onClick="]]..guid..[[/spawnKill(1)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">1D</Text></Button>
-              <Button onClick="]]..guid..[[/spawnKill(2)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">2D</Text></Button>
-              <Button onClick="]]..guid..[[/spawnKill(3)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">3D</Text></Button>
-            </GridLayout>
-            <GridLayout cellSize="60 40" childAlignment="MiddleCenter">
-              <Button onClick="]]..guid..[[/spawnKill(4)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">4D</Text></Button>
-              <Button onClick="]]..guid..[[/spawnKill(5)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">5D</Text></Button>
-              <Button onClick="]]..guid..[[/spawnKill(6)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">6D</Text></Button>
-            </GridLayout>
-          </VerticalLayout>
-          <Button onClick="]]..guid..[[/roll()" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)" minWidth="80"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">ROLL</Text></Button>
-          <VerticalLayout>
-            <GridLayout cellSize="60 40" childAlignment="MiddleCenter">
-              <Button onClick="]]..guid..[[/selectValueP(0)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">Low</Text></Button>
-              <Button onClick="]]..guid..[[/selectValueP(1)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">1</Text></Button>
-              <Button onClick="]]..guid..[[/selectValueP(2)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">2-</Text></Button>
-            </GridLayout>
-            <GridLayout cellSize="60 40" childAlignment="MiddleCenter">
-              <Button onClick="]]..guid..[[/selectValueP(3)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">3-</Text></Button>
-              <Button onClick="]]..guid..[[/selectValueP(4)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">4-</Text></Button>
-              <Button onClick="]]..guid..[[/selectValueP(5)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="30" color="#CCCCCC">5-</Text></Button>
-            </GridLayout>
-          </VerticalLayout>
-        </HorizontalLayout>
-      </Panel>
-      <Panel id="diceZoomUI" color="rgba(0.2,0.2,0.2,0.7)" position="-900 0 -20" rotation="0 0 0"
-        allowDragging="true" restrictDraggingToParentBounds="false" returnToOriginalPositionWhenReleased="false" active="true" height="280" width="100">
-        <Panel height="280" width="100" childAlignment="MiddleCenter">
-          <HorizontalLayout childAlignment="MiddleCenter">
-            <VerticalLayout>
-              <Text fontStyle="bold" fontSize="20" id="r1" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="r2" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="r3" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="r4" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="r5" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="r6" color="#f94231">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="rA" color="#f94231">0</Text>
-            </VerticalLayout>
-            <VerticalLayout>
-              <Button onClick="]]..guid..[[/selectValue(1)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">1</Text></Button>
-              <Button onClick="]]..guid..[[/selectValue(2)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">2</Text></Button>
-              <Button onClick="]]..guid..[[/selectValue(3)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">3</Text></Button>
-              <Button onClick="]]..guid..[[/selectValue(4)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">4</Text></Button>
-              <Button onClick="]]..guid..[[/selectValue(5)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">5</Text></Button>
-              <Button onClick="]]..guid..[[/selectValue(6)" colors="#282C34|#b50f00|#C8C8C8|rgba(0.78,0.78,0.78,0.5)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">6</Text></Button>
-              <Button colors="rgba(0.78,0.78,0.78,0.0)|rgba(0.78,0.78,0.78,0.0)|rgba(0.78,0.78,0.78,0.0)|rgba(0.78,0.78,0.78,0.0)"><Text fontStyle="bold" fontSize="25" color="#CCCCCC">=</Text></Button>
-            </VerticalLayout>
-            <VerticalLayout>
-              <Text fontStyle="bold" fontSize="20" id="b1" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="b2" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="b3" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="b4" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="b5" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="b6" color="#55adf4">0</Text>
-              <Text fontStyle="bold" fontSize="20" id="bA" color="#55adf4">0</Text>
-            </VerticalLayout>
-          </HorizontalLayout>
-        </Panel>
-      </Panel>]])
-  end
 end
 
 function getSideColor(side)
@@ -117,15 +43,6 @@ function getSideColor(side)
   end
 end
 
-function isPlayerAllowed(player, func)
-  --print(func)
-  local retValue = player.color == leftColor or player.color == rightColor
-  if retValue == false then
-    player.broadcast("Hey ["..getColorHex(player.color).."]"..player.steam_name.."[-]! Only ["..getColorHex(leftColor).."]".. leftColor.."[-] and ["..getColorHex(rightColor).."]"..rightColor.."[-] players can use the roller!")
-  end
-  return retValue
-end
-
 function getColorHex(color)
   return Color.fromString(color):toHex()
 end
@@ -134,7 +51,6 @@ function askSpawn(args)
   local player = args["player"]
   local number = args["number"]
   local auto = args["auto"]
-  if isPlayerAllowed(player, 'askSpawn') == false then return end
   if isRolling[player.color] == 1 then return end
   spawnKill(player, number, auto)
 end
@@ -157,18 +73,23 @@ function getUnlockedObjectsFromZone(zoneName)
 end
 
 function spawnKill(player, number, autoRoll)
-    if isPlayerAllowed(player, 'spawnKill') == false then return end
     player.clearSelectedObjects()
     deleteDice(obj, player)
 
-    -- ensure number is numeric
     local count = tonumber(number) or 0
 
-    local zoneName = (player.color == "Red") and "Red Dice Zone" or "Blue Dice Zone"
+    local zoneMap = {
+        Red    = "Red Dice Zone",
+        Blue   = "Blue Dice Zone",
+        Yellow = "Yellow Dice Zone",
+        Teal   = "Teal Dice Zone"
+    }
+    local zoneName = zoneMap[player.color] or "Blue Dice Zone"
+
     local templates = getUnlockedObjectsFromZone(zoneName)
 
     if #templates == 0 then
-        for i=1, count do
+        for i = 1, count do
             local spawnParams = {
                 type              = 'Die_6',
                 position          = self.getPosition(),
@@ -176,36 +97,48 @@ function spawnKill(player, number, autoRoll)
                 scale             = {x=1+((size-1)*2), y=1+((size-1)*2), z=1+((size-1)*2)},
                 sound             = true,
                 snap_to_grid      = false,
-                callback_function = function(obj) spawn_callback(obj,player,autoRoll,true,key) end
+                callback_function = function(obj) spawn_callback(obj, player, autoRoll, true, key) end
             }
             spawnObject(spawnParams)
         end
     else
-        local gridPositions = getGrid(count, -1, -1, 2*size, (player.color == leftColor) and -4.8 or 4.8)
-for i = 1, count do
-    local template = templates[(i - 1) % #templates + 1]
-    local cloned = template.clone({
-        position = gridPositions[i],
-        rotation = template.getRotation(),
-        snap_to_grid = false
-    })
-    if cloned then
-        spawn_callback(cloned, player, autoRoll, false, key)
+
+        local offsetMap = {
+            Red    = -4.8,
+            Blue   = 4.8,
+            Yellow = -13.5,
+            Teal   = 13.5
+        }
+        local offset = offsetMap[player.color] or 0
+
+        local gridPositions = getGrid(count, -1, -1, 2*size, offset)
+        for i = 1, count do
+            local template = templates[(i - 1) % #templates + 1]
+            local cloned = template.clone({
+                position     = gridPositions[i],
+                rotation     = template.getRotation(),
+                snap_to_grid = false
+            })
+            if cloned then
+                spawn_callback(cloned, player, autoRoll, false, key)
+            end
+        end
     end
 end
 
-    end
-end
 
 function spawn_callback(obj,player,autoRoll,defaultSpawn,key)
-    if isPlayerAllowed(player, 'spawn_callback') == false then return end
     local newobj = obj
     local timeToWait = 0.5
 
-    if player.color == leftColor then
+    if player.color == "Red" then
         table.insert(diceTabL,newobj)
-    else
+    elseif player.color == "Blue" then
         table.insert(diceTabR,newobj)
+    elseif player.color == "Yellow" then
+        table.insert(diceTabY,newobj)
+    elseif player.color == "Teal" then
+        table.insert(diceTabT,newobj)
     end
 
     Wait.condition(
@@ -229,24 +162,39 @@ end
 
 
 function regroup(player)
-  if isPlayerAllowed(player, 'regroup') == false then return end
   local buff = true
-  local offset = 4.8
-  if player.color == leftColor then
+  local offset = -4.8
+
+  if player.color == "Blue" then
     offset = -offset
+  elseif player.color == "Yellow" then
+    offset = 3 * offset
+  elseif player.color == "Teal" then
+    offset = -3 * offset
   end
+
   fixValue(player)
   getDiceNumber(player)
 
   for key,value in pairs(getGrid(getDiceNumber(player),-1,-1,2*size,offset)) do
-    if player.color == leftColor then
+    if player.color == "Red" then
       diceTabL[key].setRotation({x=diceTabL[key].getRotation().x,y=self.getRotation().y,z=diceTabL[key].getRotation().z})
       if diceTabL[key].setPositionSmooth(value, false, true) == false then
         buff = false
       end
-    else
+    elseif player.color == "Blue" then
       diceTabR[key].setRotation({x=diceTabR[key].getRotation().x,y=self.getRotation().y,z=diceTabR[key].getRotation().z})
       if diceTabR[key].setPositionSmooth(value, false, true) == false then
+        buff = false
+      end
+    elseif player.color == "Yellow" then
+      diceTabY[key].setRotation({x=diceTabY[key].getRotation().x,y=self.getRotation().y,z=diceTabY[key].getRotation().z})
+      if diceTabY[key].setPositionSmooth(value, false, true) == false then
+        buff = false
+      end
+    elseif player.color == "Teal" then
+      diceTabT[key].setRotation({x=diceTabT[key].getRotation().x,y=self.getRotation().y,z=diceTabT[key].getRotation().z})
+      if diceTabT[key].setPositionSmooth(value, false, true) == false then
         buff = false
       end
     end
@@ -298,16 +246,26 @@ function round(n)
 end
 
 function fixValue(player)
-  if isPlayerAllowed(player, 'fixValue') == false then return end
-
-  if player.color == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil then
         value.setValue(value.getValue())
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil then
+        value.setValue(value.getValue())
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil then
+        value.setValue(value.getValue())
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil then
         value.setValue(value.getValue())
       end
@@ -316,16 +274,27 @@ function fixValue(player)
 end
 
 function deleteDice(obj, player)
-  if isPlayerAllowed(player, 'deleteDice') == false then return end
 
-  if player.color == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil then
         destroyObject(value)
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil then
+        destroyObject(value)
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil then
+        destroyObject(value)
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil then
         destroyObject(value)
       end
@@ -335,11 +304,10 @@ function deleteDice(obj, player)
 end
 
 function getDiceNumber(player)
-  if isPlayerAllowed(player, 'getDiceNumber') == false then return end
 
   local diceNumber = 0
   local diceTabTemp = {}
-  if player.color == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil then
         diceNumber = diceNumber + 1
@@ -347,7 +315,7 @@ function getDiceNumber(player)
       end
     end
     diceTabL = diceTabTemp
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
       if value ~= nil then
         diceNumber = diceNumber + 1
@@ -355,6 +323,22 @@ function getDiceNumber(player)
       end
     end
     diceTabR = diceTabTemp
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil then
+        diceNumber = diceNumber + 1
+        table.insert(diceTabTemp,value)
+      end
+    end
+    diceTabY = diceTabTemp
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
+      if value ~= nil then
+        diceNumber = diceNumber + 1
+        table.insert(diceTabTemp,value)
+      end
+    end
+    diceTabT = diceTabTemp
   end
   return diceNumber
 end
@@ -391,6 +375,38 @@ function setDiceValue()
 
   self.UI.setValue('bA',all)
   Global.UI.setValue('bA',all)
+
+  all = 0
+  for i=1,6 do
+    buff = 0
+    for k,v in ipairs(diceTabY) do
+      if v ~= nil and v.getValue() == i  then
+        buff = buff + 1
+      end
+    end
+    all = all + buff
+    self.UI.setValue('y'..i,buff)
+    Global.UI.setValue('y'..i,buff)
+  end
+
+  self.UI.setValue('yA',all)
+  Global.UI.setValue('yA',all)
+
+  all = 0
+  for i=1,6 do
+    buff = 0
+    for k,v in ipairs(diceTabT) do
+      if v ~= nil and v.getValue() == i  then
+        buff = buff + 1
+      end
+    end
+    all = all + buff
+    self.UI.setValue('t'..i,buff)
+    Global.UI.setValue('t'..i,buff)
+  end
+
+  self.UI.setValue('tA',all)
+  Global.UI.setValue('tA',all)
 end
 
 function onUpdate()
@@ -403,7 +419,7 @@ function onUpdate()
 end
 
 function roll(player)
-  if isPlayerAllowed(player, 'roll') == false then return end
+
   if getDiceNumber(player) ~= 0 then
     for key,value in pairs(player.getSelectedObjects()) do
       value.roll()
@@ -417,7 +433,7 @@ function roll(player)
 end
 
 function order(player)
-  if isPlayerAllowed(player, 'order') == false then return end
+
   fixValue(player)
 
   for diceValue=1, 6, 1 do
@@ -426,10 +442,14 @@ function order(player)
     local diceTabTemp = {}
     local diceTabCurrent = {}
 
-    if player.color == leftColor then
+    if player.color == "Red" then
       diceTabCurrent = diceTabL
-    else
+    elseif player.color == "Blue" then
       diceTabCurrent = diceTabR
+    elseif player.color == "Yellow" then
+      diceTabCurrent = diceTabY
+    elseif player.color == "Teal" then
+      diceTabCurrent = diceTabT
     end
 
     for key,value in pairs(diceTabCurrent) do
@@ -455,22 +475,35 @@ function order(player)
 end
 
 function selectValueP(player,valueDice)
-  if isPlayerAllowed(player, 'selectValueP') == false then return end
 
   if valueDice == "0" then
     local lowestSoFar = 7
     local lowestItemSoFar = nil
 
     player.clearSelectedObjects()
-    if player.color == leftColor then
+    if player.color == "Red" then
       for key,value in pairs(diceTabL) do
         if value ~= nil and value.getRotationValue() < lowestSoFar then
           lowestSoFar = value.getRotationValue()
           lowestItemSoFar = value
         end
       end
-    else
+    elseif player.color == "Blue" then
       for key,value in pairs(diceTabR) do
+        if value ~= nil and value.getRotationValue() < lowestSoFar then
+          lowestSoFar = value.getRotationValue()
+          lowestItemSoFar = value
+        end
+      end
+    elseif player.color == "Yellow" then
+      for key,value in pairs(diceTabY) do
+        if value ~= nil and value.getRotationValue() < lowestSoFar then
+          lowestSoFar = value.getRotationValue()
+          lowestItemSoFar = value
+        end
+      end
+    elseif player.color == "Teal" then
+      for key,value in pairs(diceTabT) do
         if value ~= nil and value.getRotationValue() < lowestSoFar then
           lowestSoFar = value.getRotationValue()
           lowestItemSoFar = value
@@ -485,14 +518,26 @@ function selectValueP(player,valueDice)
   end
 
   player.clearSelectedObjects()
-  if player.color == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil and value.getRotationValue() <= tonumber(valueDice) then
         value.addToPlayerSelection(player.color)
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil and value.getRotationValue() <= tonumber(valueDice) then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil and value.getRotationValue() <= tonumber(valueDice) then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil and value.getRotationValue() <= tonumber(valueDice) then
         value.addToPlayerSelection(player.color)
       end
@@ -502,17 +547,29 @@ function selectValueP(player,valueDice)
 end
 
 function selectValue(player,valueDice)
-  if isPlayerAllowed(player, 'selectValue') == false then return end
+
   player.clearSelectedObjects()
 
-  if player.color == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil and value.getRotationValue() == tonumber(valueDice) then
         value.addToPlayerSelection(player.color)
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil and value.getRotationValue() == tonumber(valueDice) then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil and value.getRotationValue() == tonumber(valueDice) then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil and value.getRotationValue() == tonumber(valueDice) then
         value.addToPlayerSelection(player.color)
       end
@@ -522,20 +579,31 @@ function selectValue(player,valueDice)
 end
 
 function destroyValueP(player,valueDice)
-  if isPlayerAllowed(player, 'destroyValueP') == false then return end
 
   if(valueDice == "1") then
     valueDice = "7"
   end
 
-  if player == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil and value.getRotationValue() < tonumber(valueDice) then
         destroyObject(value)
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil and value.getRotationValue() < tonumber(valueDice) then
+        destroyObject(value)
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil and value.getRotationValue() < tonumber(valueDice) then
+        destroyObject(value)
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil and value.getRotationValue() < tonumber(valueDice) then
         destroyObject(value)
       end
@@ -546,17 +614,29 @@ function destroyValueP(player,valueDice)
 end
 
 function selectAll(player)
-  if isPlayerAllowed(player, 'selectAll') == false then return end
+
   player.clearSelectedObjects()
 
-  if player == leftColor then
+  if player.color == "Red" then
     for key,value in pairs(diceTabL) do
       if value ~= nil then
         value.addToPlayerSelection(player.color)
       end
     end
-  else
+  elseif player.color == "Blue" then
     for key,value in pairs(diceTabR) do
+      if value ~= nil then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Yellow" then
+    for key,value in pairs(diceTabY) do
+      if value ~= nil then
+        value.addToPlayerSelection(player.color)
+      end
+    end
+  elseif player.color == "Teal" then
+    for key,value in pairs(diceTabT) do
       if value ~= nil then
         value.addToPlayerSelection(player.color)
       end
@@ -572,7 +652,6 @@ function timerDestroy()
 end
 
 function toggleMenu(player,value,id)
-  if isPlayerAllowed(player, 'toggleMenu') == false then return end
 
   if menu == 0 then
     menu = 1
@@ -584,7 +663,7 @@ function toggleMenu(player,value,id)
 end
 
 function toggleUI(player)
-  if isPlayerAllowed(player, 'toggleUI') == false then return end
+
   local side = "Left"
   if player.color == rightColor then
     side = "Right"
@@ -663,21 +742,38 @@ end
 
 function setDice(args)
   local player = args["player"]
-  if isPlayerAllowed(player, 'toggleMenu') == false then return end
+  local color = player.color
+  local diceTab = args["diceTabTemp"]
 
-  if player.color == leftColor then
-    diceTabL = args["diceTabTemp"]
-    for key,value in pairs(diceTabL) do
-      diceTabL[key].setRotation({x=diceTabL[key].getRotation().x,y=self.getRotation().y,z=diceTabL[key].getRotation().z})
+  if color == "Red" then
+    diceTabL = diceTab
+    for _, die in pairs(diceTabL) do
+      local rot = die.getRotation()
+      die.setRotation({x = rot.x, y = self.getRotation().y, z = rot.z})
     end
-  else
-    diceTabR = args["diceTabTemp"]
-    for key,value in pairs(diceTabR) do
-      diceTabR[key].setRotation({x=diceTabR[key].getRotation().x,y=self.getRotation().y,z=diceTabR[key].getRotation().z})
+  elseif color == "Blue" then
+    diceTabR = diceTab
+    for _, die in pairs(diceTabR) do
+      local rot = die.getRotation()
+      die.setRotation({x = rot.x, y = self.getRotation().y, z = rot.z})
+    end
+  elseif color == "Yellow" then
+    diceTabY = diceTab
+    for _, die in pairs(diceTabY) do
+      local rot = die.getRotation()
+      die.setRotation({x = rot.x, y = self.getRotation().y, z = rot.z})
+    end
+  elseif color == "Teal" then
+    diceTabT = diceTab
+    for _, die in pairs(diceTabT) do
+      local rot = die.getRotation()
+      die.setRotation({x = rot.x, y = self.getRotation().y, z = rot.z})
     end
   end
+
   selectAll(player)
 end
+
 
 function printresultsTable(player)
   isRolling[player.color] = 0
@@ -688,10 +784,14 @@ function printresultsTable(player)
     color = player.color
   }
 
-  if player.color == leftColor then
+  if player.color == "Red" then
     params.resultTab = diceTabL
-  else
+  elseif player.color == "Blue" then
     params.resultTab = diceTabR
+  elseif player.color == "Yellow" then
+    params.resultTab = diceTabY
+  elseif player.color == "Teal" then
+    params.resultTab = diceTabT
   end
 
   announceResults(params)
@@ -729,4 +829,26 @@ function announceResults(params)
   -- add rolls to game log
   local gamelogGuid = 'bafa93'
   getObjectFromGUID(gamelogGuid).call('gameLogAppendRoll', {rolls=rolls_for_log, player=player_name})
+end
+
+function multiplayerModeON()
+	multiplayerDiceUION()
+end
+
+function multiplayerModeOFF()
+	multiplayerDiceUIOFF()
+end
+
+function multiplayerDiceUION()
+    self.UI.show('yColumn')
+    self.UI.show('yButtons')
+    self.UI.show('tButtons')
+    self.UI.show('tColumn')
+end
+
+function multiplayerDiceUIOFF()
+    self.UI.hide('yColumn')
+    self.UI.hide('yButtons')
+    self.UI.hide('tButtons')
+    self.UI.hide('tColumn')
 end
