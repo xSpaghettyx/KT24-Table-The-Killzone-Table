@@ -2109,19 +2109,38 @@ function buildHUD(def)
 end
 
 -- Remove HUD
-function removeHUD()
-  Global.call("removeHUDForObject", {panelID = panelID})
+function clearGlobalHUD()
+  local ui = Global.UI.getXmlTable()
+  if ui == nil then return end
+
+  for i = #ui, 1, -1 do
+    local attrs = ui[i].attributes
+    if attrs and (attrs.id == "kts__hud_panel" or attrs.id == "scoreBoardGUI") then
+      table.remove(ui, i)
+    end
+  end
+
+  Global.UI.setXmlTable(ui)
 end
 
 function onDestroy()
-  removeHUD()
+  pcall(clearGlobalHUD)
+end
+
+function onEnterContainer(container)
+  pcall(clearGlobalHUD)
 end
 
 function onObjectEnterContainer(container, object)
   if object == self then
-    removeHUD()
+    pcall(clearGlobalHUD)
   end
 end
+
+function onPutIntoContainer(container, player_color)
+  pcall(clearGlobalHUD)
+end
+
 
 function buildUI()
   loadAssets(rules.art.graphics)
@@ -2680,6 +2699,14 @@ function getCurrentRound()
       break
     end
     if scoring[2].initiative[i] then
+      round = i
+      break
+    end
+    if scoring[3].initiative[i] then
+      round = i
+      break
+    end
+    if scoring[4].initiative[i] then
       round = i
       break
     end
